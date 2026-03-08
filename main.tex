@@ -1,0 +1,199 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Extending Heterogeneity-Aware GPU Scheduling with Fragmentation Awareness\\
+\thanks{*This paper was written as a final project report for Stanford's Advanced Networking and Distributed System CS244 course in Winter 2026.
+Thanks to Dr. Keith Winstein and Dr. David Mazières for their guidance and review.}
+}
+
+\author{\IEEEauthorblockN{Varun Ramesh}
+\IEEEauthorblockA{\textit{Stanford University} \\
+\textit{Graduate Department of Engineering} \\
+vramesh3@stanford.edu}
+\and
+\IEEEauthorblockN{Jiayu Chang}
+\IEEEauthorblockA{\textit{Stanford University} \\
+\textit{Graduate Department of Engineering} \\
+cjy1125@stanford.edu}
+\and
+\IEEEauthorblockN{Hyeonggyu Kim}
+\IEEEauthorblockA{\textit{Stanford University} \\
+\textit{Graduate Department of Engineering} \\
+hgk@stanford.edu}
+\and
+\hspace*{6.5cm}\IEEEauthorblockN{Stefan Gabriel Ene}
+\IEEEauthorblockA{\hspace*{6.5cm}\textit{Stanford University} \\
+\hspace*{6.5cm}\textit{Graduate Department of Engineering} \\
+\hspace*{6.5cm}enegstef@stanford.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+As deep learning models grow in scale and complexity, GPU clusters have become essential infrastructure for training and inference workloads.
+To maximize utilization of these expensive resources, modern production clusters increasingly rely on GPU sharing, where multiple jobs run on the same physical GPU through partial resource allocations.
+While sharing improves overall utilization, it introduces a critical challenge: fragmentation, where small, scattered remnants of GPU memory and compute become stranded across nodes, rendering them unusable despite appearing as available capacity.
+This mismatch between reported and effective utilization leads to degraded job performance, longer queue times, and wasted resources at scale.
+
+Existing scheduling systems address parts of this problem in isolation.
+Gavel provides a heterogeneity-aware policy framework using an effective throughput abstraction, but it was validated primarily on whole-GPU workloads where fragmentation does not arise.
+Fragmentation Gradient Descent (FGD) directly targets fragmentation through a gradient-based placement algorithm, but it assumes FIFO scheduling and lacks policy flexibility.
+
+In this work, we bridge these approaches by integrating FGD into Gavel through a two-stage scheduling design.
+Gavel's policy layer first determines the GPU types and quantities allocated to each job, while FGD performs fragmentation-aware placement to select the exact GPUs and nodes that realize this allocation.
+We evaluate the resulting Gavel+FGD scheduler on Alibaba GPU-sharing production traces across multiple policies and cluster configurations.
+Our results show that combining policy-level scheduling with fragmentation-aware placement significantly improves cluster efficiency, highlighting the tight coupling between scheduling decisions and fragmentation in shared GPU clusters.
+\end{abstract}
+
+
+
+\begin{IEEEkeywords}
+GPU sharing, fragmentation, heterogeneity-aware, scheduling policies,  workload traces, distributed training
+\end{IEEEkeywords}
+
+
+\section{Introduction}
+GPU cluster scheduling for deep learning has evolved significantly as organizations deploy increasingly diverse hardware to support training and inference workloads.
+The growing scale and complexity of deep learning models has driven demand for efficient utilization of GPU resources, which represent a substantial fraction of total cluster cost.
+In production environments, GPU utilization rates still remain low, often averaging between 25\% and 50\% \cite{FGD}.
+This motivated the adoption of GPU sharing techniques that allow multiple tasks to run on a single physical GPU through partial resource allocation.
+
+While GPU sharing improves aggregate utilization, it introduces the fundamental challenge of \textit{resource fragmentation}.
+When tasks receive partial GPU allocations, the remaining capacity on each device may be too small to satisfy subsequent requests.
+Furthermore, these fragments cannot be consolidated across physical GPU boundaries the way CPU or memory resources can.
+This problem is structurally distinct from classical bin packing because GPUs on a multi-GPU node are interchangeable for any task with sufficient capacity, yet each maintains its own allocation boundary.
+Production trace analysis from Alibaba clusters shows that fragmentation can render 21\% to 42\% of unallocated GPU resources unusable even during normal operating periods, and scheduling failures surge during peak hours despite sufficient aggregate idle capacity \cite{ALIBABA, FGD}.
+
+Separately, the heterogeneity of modern GPU clusters presents another scheduling dimension.
+Organizations accumulate different accelerator generations over time, and models exhibit widely varying speedups across GPU types.
+A ResNet-50 model may see a 10x throughput improvement from a K80 to a V100, while a reinforcement learning model like A3C may see only 2x \cite{GAVEL}. Scheduling policies must account for these performance differences when allocating resources across competing jobs.
+
+Two recent systems address complementary aspects of this problem.
+Gavel \cite{GAVEL} provides a general framework for expressing scheduling policies as optimization problems over an effective throughput abstraction, enabling heterogeneity-aware allocation across GPU types with support for fairness, makespan minimization, cost optimization, and hierarchical policies.
+However, Gavel was validated exclusively on whole-GPU workloads from the Philly trace, where fragmentation is not considered.
+The work on Fragmentation Gradient Descent (FGD) \cite{FGD} directly targets the fragmentation problem by defining a statistical fragmentation measure and scheduling tasks toward the steepest descent of this measure.
+FGD reduces unallocated GPUs by up to 49\% compared to existing packing heuristics, but operates under simple FIFO ordering without a flexible policy framework.
+
+\subsection{Contribution}
+The gap we address lies at the intersection of these two systems.
+Neither has been evaluated in a setting that combines policy-expressive scheduling with fragmentation-aware placement on GPU-sharing traces.
+We validate Gavel on Alibaba's GPU-sharing production traces, integrate FGD's fragmentation-aware placement into Gavel's policy framework, and evaluate the resulting system across multiple scheduling policies and cluster configurations.
+
+% We want to demonstrate how scheduling policies and priorities for GPU workloads interact with GPU fragmentation, where partial GPU allocations lead to stranded and unusable resources, basing our work on two system implementations with shortcomings in this area.
+
+% We will achieve this by reproducing work in Gavel \cite{GAVEL}, while simultaneously integrating the Fragmentation Gradient Descent (FGD) algorithm \cite{FGD}.
+% We will integrate these systems together for a fragmentation-aware scheduling framework and compare our approach graphically to each paper's methodology.
+% We will continue evaluating the insights with additional fixes to this cohesive system, further scheduling policies, and a comprehensive analysis of our findings. 
+
+
+\section{Background \& Related Work}
+\subsection{GPU Sharing and Fragmentation}
+Modern GPU sharing is implemented through runtime-level API interception, framework-level mechanisms, or hardware features such as NVIDIA's Multi-Instance GPU (MIG).
+In Alibaba's production deployment, tasks receive partial GPU allocations at a granularity of 0.01 GPUs, with guaranteed isolation of compute and memory resources \cite{FGD}.
+While this fine-grained sharing reduces the number of GPUs a workload requires, it creates fragmentation when the remaining capacity on individual devices cannot satisfy remaining requests.
+Unlike memory or disk fragmentation, GPU fragmentation cannot be resolved by non-contiguous allocation: a task requesting one full GPU cannot be served by combining 0.3 and 0.7 GPU fragments across two devices.
+
+FGD addresses this problem through a statistical fragmentation measure.
+For a given node, the measure computes the expected number of GPUs that cannot be allocated to a randomly sampled task from the target workload, weighted by task popularity.
+This formulation captures both deficient fragmentation (insufficient GPU capacity) and stranded fragmentation (sufficient GPU capacity but insufficient co-located CPU or memory).
+The cluster-level fragmentation is then the aggregate across all nodes.
+FGD uses this measure as a scheduling heuristic: for each incoming task, it hypothetically assigns the task to every eligible node, computes the resulting fragmentation increment, and selects the node that minimizes fragmentation growth.
+
+\subsection{Heterogeneity-Aware Scheduling}
+Gavel addresses the problem of scheduling across heterogeneous accelerator types by expressing policies as optimization problems over allocation matrices.
+Each entry specifies the fraction of wall clock time a job should spend on a given accelerator type.
+The objective function is written in terms of effective throughput, defined as the time-weighted average throughput across the job's allocated resources.
+This abstraction allows Gavel to generalize policies including Least Attained Service (max-min fairness), finish-time fairness, FIFO, makespan minimization, and hierarchical multi-level policies.
+A round-based scheduling mechanism then maps computed allocations to physical resource assignments, using priority scores to converge each job's actual time share toward its target allocation.
+
+Gavel's throughput matrix captures per-job, per-accelerator performance, and extensions support space sharing (co-locating multiple jobs on one GPU) and placement sensitivity (consolidated vs. distributed task placement).
+However, Gavel's evaluation used the Philly trace, which contains only whole-GPU job requests, and its placement logic does not account for fragmentation arising from partial GPU allocations.
+
+
+\section{Methodology}
+Our approach proceeds in three phases: independent replication of each baseline system, integration of FGD into Gavel's framework, and comparative evaluation
+
+\subsection{Phase 1: Baseline Replication}
+We first replicate Gavel's scheduling simulator and validate it against published results on the Philly trace.
+We reproduce the effective throughput computation, the round-based scheduling mechanism, and their proposed policy optimization.
+In parallel, we replicate FGD's Kubernetes-based scheduler simulator as a standalone scheduler, reproducing the statistical fragmentation measurement and the gradient descent placement algorithm, and validate against published results on the Alibaba v2023 trace \cite{ALIBABA}.
+
+\subsection{Phase 2: Integration}
+Following, we integrate FGD's fragmentation-aware placement into Gavel's scheduling framework.
+Gavel's two-phase architecture separates policy computation (determining target time-fraction allocations) from the scheduling mechanism (assigning jobs to physical resources each round).
+FGD's placement logic would then operate at the second phase: once Gavel's policy determines which job should run in a given round and on which accelerator type, the integrated system uses FGD's fragmentation gradient to select the specific node and GPU within that type.
+For each candidate node, the system hypothetically assigns the task and computes the fragmentation increment as defined by FGD's statistical measure.
+The node with the minimum increment is selected.
+This integration preserves Gavel's policy-level optimization while adding fragmentation awareness at the placement level.
+
+\subsection{Phase 3: Evaluation}
+To finalize our methodology, we validate the baseline methodologies, meaning Gavel without fragmentation awareness and standalone FGD with FIFO scheduling, and then evaluate the combined Gavel plus integrated FGD system.
+All configurations are evaluated on the Alibaba v2023 GPU-sharing trace, which contains over 7,600 tasks across 1,200 nodes with 6,200 GPUs of heterogeneous types (V100, T4, P100).
+We measure average job completion time, GPU allocation rate, fragmentation rate over time, and the number of unallocated GPUs at cluster saturation.
+We sweep across scheduling policies including LAS, FIFO, and shortest-job-first to characterize how policy choice interacts with fragmentation.
+As time permits, we extend the evaluation to include topology-aware placement and additional policies.
+
+
+\section{Results}
+\subsection{Gavel}
+hi
+
+\subsection{FGD}
+hi
+
+\subsection{FGD+Gavel}
+hi
+
+\section{Analysis}
+
+\subsection{Gavel}
+hi
+
+\subsection{FGD}
+hi
+
+\subsection{FGD+Gavel}
+hi
+
+\subsection{Improvements}
+(Jiayu)
+
+\section{Conclusion}
+hi
+
+
+\newpage
+\section*{Acknowledgment}
+
+Thank you to our course instructors, Dr. Keith Winstein and Dr. David Mazières, for their continued support with and feedback on our project topic, research contribution, and course support.
+We recommend all Computer Science students that have the ability to take CS244 to do so in order to conduct similar thrilling projects.
+
+
+\section*{AI Usage}
+To complete this ambitious project within the constrained quarter-based timeline, we integrated AI as part of our development work for automating tasks experiment testing scripts, aid for parsing the content of both research works, and code generation for outlining the systems and ideas behind, not end-to-end implementation.
+Due to our AI-aided approach, we were able to create a more comprehensive evaluation and visual aids to support this analysis of our combined Gavel+FGD system.
+We acknowledge that the ideas and methods are our own, and we made use of AI tools only in order to maximize our key takeaways from this project.
+
+
+
+\begin{thebibliography}{00}
+\bibitem{GAVEL} Narayanan, D., Santhanam, K., Kazhamiaka, F., et al. "Heterogeneity-Aware Cluster Scheduling Policies for Deep Learning Workloads." OSDI 2020. \href{https://www.usenix.org/conference/osdi20/presentation/narayanan-deepak}{Usenix Web Link}.
+\bibitem{FGD} Weng, Q., Yang, L., Yu, Y., et al. "Beware of Fragmentation: Scheduling GPU-Sharing Workloads with Fragmentation Gradient Descent." USENIX ATC 2023. \href{https://www.usenix.org/conference/atc23/presentation/weng}{Usenix Web Link}.
+\bibitem{ALIBABA} Alibaba Group. "Cluster Data Collected from Production Clusters." 2020-2023. \href{https://github.com/alibaba/clusterdata}{GitHub Web Link}.
+\bibitem{GPUFRAG} "Gavel + FGD: Heterogeneity-Aware Scheduling with Fragmentation-Aware Placement." GitHub Repository, 2026. \href{https://github.com/alibaba/clusterdata/tree/master}{GitHub Repo Link}.
+\bibitem{SALUS}  Peifeng Yu and Mosharaf Chowdhury. “Salus: Fine-grained GPU sharing primitives for deep learning applications.” In Proc. MLSys, 2020. \href{https://arxiv.org/pdf/1902.04610}{Web Link}.
+
+\end{thebibliography}
+
+\end{document}
