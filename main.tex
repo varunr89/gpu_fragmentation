@@ -65,12 +65,14 @@ Gavel \cite{GAVEL} expresses scheduling policies as optimization problems over a
 FGD \cite{FGD} defines a statistical fragmentation measure and places tasks toward the steepest descent of this measure, reducing unallocated GPUs by up to 49\% -- but operates under FIFO ordering without a flexible policy framework.
 
 \subsection{Contribution}
-We bridge these approaches through three contributions:
+We bridge these approaches through four contributions:
 \begin{enumerate}
 \item Independent replication of both Gavel and FGD, validating against published results on their respective traces.
 \item Integration of FGD placement into Gavel's two-stage architecture, preserving policy-level optimization while adding fragmentation awareness.
 \item A comparative evaluation revealing that fragmentation reduction depends on \textit{node topology diversity} (mixed node sizes), not GPU type heterogeneity -- a finding neither original paper addresses.
+\item An open-source interactive visualization tool\footnote{\url{https://github.com/varunr89/gpu-scheduling-viz}} for exploring GPU allocation, fragmentation, and scheduling dynamics across experiments. The tool uses a plugin-based architecture, allowing users to mix and match allocation policies, placement strategies, and scheduling algorithms.
 \end{enumerate}
+All code, including our extended Gavel+FGD simulator, is available at \url{https://github.com/varunr89/gavel}.
 
 \section{Background \& Related Work}
 
@@ -276,9 +278,11 @@ We recommend all Computer Science students with the ability to take CS244 do so 
 
 
 \section*{AI Usage}
-To complete this project within the constrained quarter-based timeline, we integrated AI as part of our development work for automating experiment testing scripts, parsing the content of both research works, and code generation for outlining system components -- not end-to-end implementation.
-This approach enabled a more comprehensive evaluation and visual aids to support the analysis of our combined Gavel+FGD system.
-The ideas and methods are our own; we used AI tools to maximize productivity.
+AI served as our research infrastructure assistant throughout this project.
+None of our team had prior experience with Stanford FarmShare, and the experiments required SLURM cluster compute that could not run on personal machines.
+We used AI to accelerate onboarding to FarmShare, set up the experiment pipeline, debug job failures, and manage the infrastructure (SLURM scripts, SSH multiplexing, result extraction) so we could focus on the core research.
+For the simulator itself, AI assisted with debugging integration issues between the Gavel and FGD codebases and building the interactive visualization tool.
+The research design, methodology, and analysis are our own.
 
 
 \begin{thebibliography}{00}
