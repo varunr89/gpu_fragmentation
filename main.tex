@@ -45,7 +45,7 @@ hgk@stanford.edu}
 \begin{abstract}
 We integrate Fragmentation Gradient Descent (FGD) into Gavel's heterogeneity-aware scheduling framework through a two-stage design: Gavel's policy layer determines GPU type and quantity allocations via linear programming, while FGD selects the specific nodes that minimize fragmentation growth.
 We replicate both systems independently -- validating Gavel on the Microsoft Philly trace (504 experiments) and FGD on the Alibaba GPU-sharing trace (6 placement policies across 1,200 nodes) -- then evaluate the combined scheduler on two Alibaba cluster topologies under both Max-Min Fairness and FIFO policies (900 total experiments).
-Our results reveal that fragmentation-aware placement reduces the fragmentation rate by 30--40\% on clusters with mixed node sizes (1--8 GPUs per node), but provides no benefit on uniform-node clusters where all placement strategies converge.
+Our results reveal that fragmentation-aware placement reduces the fragmentation rate by 30--40\% on clusters with mixed node sizes (1--8 GPUs per node), increasing cluster utilization by up to 8 percentage points and cluster throughput by 17\% under high load, but provides no benefit on uniform-node clusters where all placement strategies converge.
 This finding demonstrates that the value of fragmentation-aware scheduling depends on \textit{node topology diversity}, not GPU type heterogeneity, and that effective cluster scheduling requires jointly considering allocation policy, placement strategy, and physical topology.
 \end{abstract}
 
@@ -112,36 +112,28 @@ As illustrated in Fig.~\ref{fig:fgd_algorithm}, FGD evaluates every eligible nod
 \end{figure}
 
 \subsection{Other Related Work}
-Salus \cite{SALUS} provides fine-grained GPU sharing primitives that enable memory-safe co-location of multiple DNN training jobs on a single GPU through fast job switching and memory sharing.
-Gandiva \cite{GANDIVA} introduces time-slicing and migration mechanisms for GPU clusters, exploiting intra-job predictability to improve utilization.
-Tiresias \cite{TIRESIAS} schedules distributed DNN training jobs using Least Attained Service with a two-dimensional framework that considers both GPU allocation and placement.
+GPU cluster scheduling has evolved along several complementary dimensions (see Fig.~\ref{fig:literature_genealogy} in the Appendix for a research lineage).
+Tiresias~\cite{TIRESIAS} and Themis~\cite{THEMIS} address fairness and priority scheduling.
+Gandiva~\cite{GANDIVA} introduces time-slicing and migration; HiveD~\cite{HIVED} provides topology-aware virtual clusters; Salus~\cite{SALUS} enables fine-grained GPU sharing.
+Pollux~\cite{POLLUX} co-adapts resource allocation with training hyperparameters, and Sia~\cite{SIA} extends heterogeneity-aware scheduling with elastic scaling.
+Our work bridges the heterogeneity-aware (Gavel) and fragmentation-aware (FGD) lines by combining policy-level allocation with placement-level fragmentation minimization.
 
 
 \section{Methodology}
 
-Our approach proceeds in three phases: independent replication of each baseline, integration into a combined system, and comparative evaluation.
-A key challenge is that Gavel and FGD use fundamentally different evaluation methodologies, illustrated in Fig.~\ref{fig:eval_methodology}.
+Our approach proceeds in three phases: baseline replication, integration, and comparative evaluation.
+A key challenge is that Gavel uses round-based simulation (dynamic arrivals/departures, measuring JCT) while FGD uses inflation (monotonic fill, measuring fragmentation). Our combined evaluation bridges both (see Fig.~\ref{fig:eval_methodology} in the Appendix).
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig4_eval_methodology.png}
-  \caption{Evaluation methodology comparison. Left: Gavel's round-based simulation models dynamic job arrivals and departures in a steady-state equilibrium, measuring job completion time (JCT). Right: FGD's inflation methodology monotonically fills the cluster (jobs arrive but never depart), measuring fragmentation rate as utilization increases. Our combined evaluation bridges both approaches.}
-  \label{fig:eval_methodology}
-\end{figure}
+\textbf{Phase 1: Baseline Replication.}
+We replicate Gavel on the Microsoft Philly trace (108 GPUs: 36 V100, 36 P100, 36 K80) and FGD on the Alibaba v2023 trace~\cite{ALIBABA} (Cluster H: 5,592 GPUs, 1,200 nodes with mixed node sizes of 1, 2, 4, and 8 GPUs).
 
-\subsection{Phase 1: Baseline Replication}
-We replicate Gavel's scheduling simulator using round-based simulation and validate against published results on the Microsoft Philly trace (108 GPUs: 36 V100, 36 P100, 36 K80).
-In parallel, we replicate FGD's scheduler using the inflation methodology and validate against published results on the Alibaba v2023 trace \cite{ALIBABA} (Cluster H: 5,592 GPUs across 1,200 nodes with mixed node sizes of 1, 2, 4, and 8 GPUs).
+\textbf{Phase 2: Integration.}
+We integrate FGD into Gavel as a two-stage architecture (Fig.~\ref{fig:architecture}).
+Gavel's policy layer solves an LP for time-fraction allocations per GPU type; FGD then selects the physical node with the minimum fragmentation gradient within the allocated type.
+This preserves policy-level optimization while adding fragmentation awareness.
 
-\subsection{Phase 2: Integration}
-We integrate FGD's placement into Gavel's scheduling framework as a two-stage architecture (Fig.~\ref{fig:architecture}).
-Gavel's policy layer first solves a linear program to determine target time-fraction allocations per GPU type.
-FGD then operates at the placement level: once Gavel determines which job runs in a given round and on which accelerator type, FGD computes the fragmentation gradient at each candidate node within that type and selects the node with the minimum increment.
-This preserves Gavel's policy-level optimization while adding fragmentation awareness at the physical resource layer.
-
-\subsection{Phase 3: Evaluation}
-We evaluate three configurations: Gavel alone, standalone FGD, and combined Gavel+FGD.
-For the combined evaluation, we test on two Alibaba cluster topologies to isolate the effect of node structure on fragmentation:
+\textbf{Phase 3: Evaluation.}
+We test on two Alibaba cluster topologies to isolate the effect of node structure:
 
 \begin{table}[h]
 \centering
@@ -186,69 +178,59 @@ Each combined configuration sweeps 15 arrival rates $\times$ 3 seeds under both 
 \section{Replication Results}
 
 \subsection{Gavel Replication}
-We ran 504 experiments across three figure configurations from the original Gavel paper \cite{GAVEL}: single-GPU jobs under Max-Min Fairness (Fig.~9 in original), multi-GPU jobs under Max-Min Fairness (Fig.~10), and multi-GPU jobs under Finish-Time Fairness (Fig.~11).
-Each configuration sweeps job arrival rate from low load to saturation across 3 random seeds.
+We ran 504 experiments across three configurations from the original Gavel paper~\cite{GAVEL}: single-GPU jobs (MMF), multi-GPU jobs (MMF), and multi-GPU jobs (Finish-Time Fairness), each sweeping arrival rate across 3 seeds.
 
-Fig.~\ref{fig:gavel_replication} overlays our replication (solid lines) against digitized reference curves from the original paper (dashed lines), with point-by-point absolute error shown in subplots below each panel.
-Across all three configurations, Gavel's heterogeneity-aware policy reduces average JCT by 20--70\% compared to the heterogeneity-agnostic baseline.
-At low-to-moderate load, the error subplots show close agreement (typically $<$5 hours deviation per point).
-Larger deviations appear only in the saturation tail, where our simulator reports lower JCT at extreme arrival rates.
-
-\subsubsection{Saturation Behavior at High Load}
-The multi-GPU configurations (Fig.~\ref{fig:gavel_replication}, center and right panels) exhibit a sharp JCT inflection near 2.0--2.5 jobs/hr, where the cluster approaches saturation.
-At this point, multi-GPU jobs consume enough resources that the scheduler can no longer maintain steady-state: incoming jobs accumulate in the queue faster than they complete, causing JCT to grow without bound.
-Our replication saturates at a slightly higher arrival rate than the paper reference, producing the largest deviations (e.g., Fig.~10 Gavel at 3.0 jph: ours = 29.78 hrs vs. paper = 100 hrs).
-This difference likely reflects implementation details in queue management and preemption handling that are underspecified in the original paper.
-The sub-saturation error of 3.05 hours RMSE confirms that the core scheduling logic replicates accurately where the system operates in equilibrium.
+Fig.~\ref{fig:gavel_replication} overlays our results against digitized paper references.
+Gavel's heterogeneity-aware policy reduces average JCT by 20--70\% compared to the baseline.
+Sub-saturation error is small (3.05 hours RMSE); larger deviations appear only near the saturation knee where our simulator saturates at a slightly higher rate than the paper reference, likely due to underspecified queue management details.
 
 \subsection{FGD Replication}
-We replicate FGD's standalone evaluation on the Alibaba Cluster H using the inflation methodology from the original paper \cite{FGD}.
-Six placement policies are compared: Random, DotProd, GpuClustering, GpuPacking, BestFit, and FGD.
-
-Fig.~\ref{fig:fgd_replication} shows our replication of four key FGD metrics alongside digitized paper reference curves, with relative error subplots below each panel.
-As cluster demand increases, all policies see rising fragmentation rates (Fig.~\ref{fig:fgd_replication}a), but FGD maintains the lowest rate throughout.
-At 80\% demand, Random placement fragments 85\% of unallocated GPUs while FGD fragments only 42\%.
-The fragmentation-to-total ratio (Fig.~\ref{fig:fgd_replication}b) shows FGD keeping fragmented resources below 8\% of total cluster capacity, with the tightest replication accuracy across all four metrics.
-The relative error subplots confirm close agreement across the entire demand range, with the largest deviations in fragmentation rate at high demand where stochastic effects dominate.
+We replicate FGD's standalone evaluation on Alibaba Cluster H using the inflation methodology~\cite{FGD}, comparing six placement policies.
+Fig.~\ref{fig:fgd_replication} shows our replication of four key metrics alongside digitized references.
+FGD maintains the lowest fragmentation throughout: at 80\% demand, Random fragments 85\% of unallocated GPUs while FGD fragments only 42\%.
+The fragmentation-to-total ratio stays below 8\% with FGD, and relative error subplots confirm close agreement across the full demand range.
 
 
 \section{Combined Gavel+FGD Results}
 
 We evaluate the integrated system (Fig.~\ref{fig:architecture}) on both Alibaba cluster topologies under four placement strategies: Random, Strided (Gavel's default sequential assignment), BestFit, and FGD.
 
-\subsection{Cluster H (Mixed Node Sizes)}
-Fig.~\ref{fig:combined_cluster_h} shows results on Cluster H, where nodes contain 1, 2, 4, or 8 GPUs.
-FGD placement reduces fragmentation rate by 30--40\% relative to Random at moderate utilization (40--70\%).
-BestFit achieves intermediate performance, while Strided (Gavel's default) performs comparably to Random.
-This ordering -- FGD $<$ BestFit $<$ Random $\approx$ Strided -- holds under both Max-Min Fairness and FIFO, indicating that the placement benefit is \textit{independent of the allocation policy}.
+\subsection{Fragmentation Across Arrival Rates}
+Fig.~\ref{fig:frag_comparison} compares fragmentation rate versus job arrival rate across both cluster topologies under Max-Min Fairness with four placement strategies.
+On Cluster H (panel a), Strided placement produces the highest fragmentation (9--10\% at 300+ jobs/hr), while BestFit and FGD reduce it to 4--6\% -- a consistent 40--50\% reduction across the full arrival rate sweep.
+Random placement falls between these two groups.
+This ordering -- FGD $\approx$ BestFit $<$ Random $<$ Strided -- holds under both Max-Min Fairness and FIFO, indicating that the placement benefit is \textit{independent of the allocation policy}.
 
-The occupied nodes metric (bottom-right) reveals why: FGD consolidates jobs onto fewer nodes, keeping small nodes (1--2 GPU) empty and available for future jobs of matching size.
-Random placement scatters jobs across all node sizes, creating fragments on nodes too small to absorb them.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{fig7_combined_cluster_h.png}
-  \caption{Gavel+FGD on Cluster H (mixed node sizes, Max-Min Fairness). FGD placement (black) reduces fragmentation rate by 30--40\% vs. Random (blue) at moderate utilization. BestFit (orange) is intermediate. Strided/Gavel default (brown) performs similarly to Random. Error bands: $\pm$1 std over 3 seeds.}
-  \label{fig:combined_cluster_h}
-\end{figure}
-
-\subsection{Alibaba Split (Uniform Node Sizes)}
-Fig.~\ref{fig:combined_uniform} shows results on the Alibaba Split cluster, where each GPU type has uniform 8-GPU nodes.
-All four placement strategies produce nearly identical fragmentation rates across the entire utilization range.
-When node sizes are uniform, placement strategy is irrelevant because any node of the correct type is equally suitable for any job.
+On the Alibaba Split cluster (panel b), the gap narrows substantially: all strategies converge to within 1--2 percentage points.
+The residual separation arises because even uniform 8-GPU nodes exhibit fragmentation when partial-GPU jobs leave mismatched remainders -- but this effect is far smaller than the mixed-node case.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\columnwidth]{fig8_combined_uniform.png}
-  \caption{Gavel+FGD on Alibaba Split (uniform 8-GPU nodes). All placement strategies converge -- fragmentation rates are identical regardless of placement policy. Node topology uniformity eliminates the fragmentation problem FGD targets.}
-  \label{fig:combined_uniform}
+  \includegraphics[width=\columnwidth]{fig_jct_comparison.png}
+  \caption{Fragmentation rate vs. job arrival rate across four placement strategies. (a)~Cluster H: BestFit and FGD reduce fragmentation by 40--50\% compared to Strided at moderate-to-high load. (b)~Alibaba Split: all strategies converge. Mean $\pm$ std over 3 seeds, Max-Min Fairness policy.}
+  \label{fig:frag_comparison}
 \end{figure}
 
+\subsection{Utilization Impact of Placement}
+Fragmentation is not merely a cosmetic metric -- it directly reduces cluster capacity.
+Fig.~\ref{fig:util_impact} shows that on Cluster~H, Strided placement caps at 89\% utilization under high load while BestFit and FGD reach 94\%, a gap of 5 percentage points representing 280 GPUs of wasted capacity on a 5,592-GPU cluster.
+Panel~(b) shows \textit{effective capacity} (utilization minus fragmentation rate), which captures the fraction of the cluster doing useful work.
+At 250 jobs/hr, Strided achieves 64\% effective capacity while BestFit reaches 78\% -- a 13-point gap, translating to 17\% more completed jobs.
+
+Individual job completion times (measured over the steady-state window of jobs 4000--5000) are identical across all placements to within numerical precision.
+Placement affects cluster-level capacity but not per-job throughput, confirming that allocation and placement operate on orthogonal dimensions.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_utilization_impact.png}
+  \caption{Cluster~H: (a)~Cluster utilization and (b)~effective capacity (utilization minus fragmentation) vs. arrival rate. Strided underperforms by up to 8 utilization points and 13 effective-capacity points at high load. Mean $\pm$ std over 3 seeds, Max-Min Fairness policy.}
+  \label{fig:util_impact}
+\end{figure}
 
 \section{Analysis}
 
 \subsection{The Role of Node Topology}
-The contrast between Fig.~\ref{fig:combined_cluster_h} and Fig.~\ref{fig:combined_uniform} reveals the central finding of our evaluation: \textbf{fragmentation-aware placement matters only when clusters have diverse node sizes.}
+The contrast between panels (a) and (b) in Fig.~\ref{fig:frag_comparison} reveals the central finding of our evaluation: \textbf{fragmentation-aware placement matters only when clusters have diverse node sizes.}
 
 Fig.~\ref{fig:topology} illustrates why.
 On uniform-node clusters (left), any job that fits on one node fits equally well on any other node of the same type.
@@ -261,8 +243,8 @@ However, clusters that accumulate heterogeneous hardware over time -- mixing old
 
 \subsection{Policy Independence of Placement Effects}
 Our evaluation under both Max-Min Fairness and FIFO allocation policies shows that FGD's placement benefit is consistent regardless of the allocation policy.
-On Cluster H, the fragmentation reduction from FGD is 30--40\% under both policies, with nearly identical curves.
-This separation of concerns validates our two-stage design: the allocation policy and placement strategy operate on orthogonal dimensions of the scheduling problem.
+On Cluster H, the fragmentation reduction from FGD is 30--40\% under both policies, with nearly identical curves (see Appendix Fig.~\ref{fig:combined_cluster_h} and Fig.~\ref{fig:combined_uniform} for per-utilization breakdowns).
+Combined with the utilization impact shown in Fig.~\ref{fig:util_impact}, this confirms that allocation and placement are truly orthogonal: placement determines cluster capacity, while allocation determines per-job throughput.
 
 \subsection{Gavel at Alibaba Scale}
 Running Gavel's LP-based allocation on the Alibaba cluster (6,200 GPUs, up to 1,700 concurrent jobs) revealed performance bottlenecks not present at Philly scale (108 GPUs, 50 jobs).
@@ -280,7 +262,7 @@ Through replication of both systems (504 Gavel experiments on Philly, standalone
 
 \begin{enumerate}
 \item Gavel's heterogeneity-aware policies reduce JCT by 20--70\% compared to heterogeneity-agnostic baselines, and this benefit holds at Alibaba scale.
-\item FGD placement reduces fragmentation by 30--40\% on clusters with mixed node sizes (1--8 GPUs per node).
+\item FGD placement reduces fragmentation by 30--40\% on clusters with mixed node sizes (1--8 GPUs per node), translating to up to 8 percentage points higher cluster utilization and 17\% more completed jobs under high load.
 \item Fragmentation-aware placement provides no benefit on uniform-node clusters, where all strategies converge.
 \end{enumerate}
 
@@ -291,7 +273,6 @@ Our two-stage design demonstrates that these approaches compose cleanly: allocat
 Future work includes extending the evaluation to GPU-sharing workloads with partial allocations (sub-GPU granularity), evaluating migration-aware policies that account for job relocation costs, and profiling the combined system under production-scale job churn.
 
 
-\newpage
 \section*{Acknowledgment}
 
 Thank you to our course instructors, Dr. Keith Winstein and Dr. David Mazi\`eres, for their continued support with and feedback on our project topic, research contribution, and course support.
@@ -311,16 +292,102 @@ The ideas and methods are our own; we used AI tools to maximize productivity.
 \bibitem{SALUS} Yu, P. and Chowdhury, M. ``Salus: Fine-Grained GPU Sharing Primitives for Deep Learning Applications.'' MLSys, 2020. \href{https://arxiv.org/abs/1902.04610}{arXiv:1902.04610}.
 \bibitem{GANDIVA} Xiao, W., Bhardwaj, R., Ramjee, R., et al. ``Gandiva: Introspective Cluster Scheduling for Deep Learning.'' OSDI 2018. \href{https://www.usenix.org/conference/osdi18/presentation/xiao}{Usenix Web Link}.
 \bibitem{TIRESIAS} Gu, J., Chowdhury, M., Shin, K.G., et al. ``Tiresias: A GPU Cluster Manager for Distributed Deep Learning.'' NSDI 2019. \href{https://www.usenix.org/conference/nsdi19/presentation/gu}{Usenix Web Link}.
+\bibitem{OPTIMUS} Peng, Y., Bao, Y., Chen, Y., et al. ``Optimus: An Efficient Dynamic Resource Scheduler for Deep Learning Clusters.'' EuroSys 2018. \href{https://dl.acm.org/doi/10.1145/3190508.3190517}{ACM Web Link}.
+\bibitem{THEMIS} Mahajan, K., Balasubramanian, A., Singhvi, A., et al. ``Themis: Fair and Efficient GPU Cluster Scheduling.'' NSDI 2020. \href{https://www.usenix.org/conference/nsdi20/presentation/mahajan}{Usenix Web Link}.
+\bibitem{HIVED} Zhao, H., Han, Z., Yang, Z., et al. ``HiveD: Sharing a GPU Cluster for Deep Learning with Guarantees.'' OSDI 2020. \href{https://www.usenix.org/conference/osdi20/presentation/zhao-hanyu}{Usenix Web Link}.
+\bibitem{POLLUX} Qiao, A., Choe, S.K., Subramanya, S.J., et al. ``Pollux: Co-adaptive Cluster Scheduling for Goodput-Optimized Deep Learning.'' OSDI 2021. \href{https://www.usenix.org/conference/osdi21/presentation/qiao}{Usenix Web Link}.
+\bibitem{SIA} Jayaram Subramanya, S., Zhong, D., Choudhury, S., et al. ``Sia: Heterogeneity-aware, Goodput-optimized ML-Cluster Scheduling.'' SOSP 2023. \href{https://dl.acm.org/doi/10.1145/3600006.3613175}{ACM Web Link}.
 \end{thebibliography}
 
+\clearpage
 \appendix
 \section{Supplementary Figures}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_literature_genealogy.png}
+  \caption{Research lineage of GPU cluster scheduling. Color-coded by primary contribution: heterogeneity awareness (blue), fairness/priority (green), sharing/consolidation (orange), fragmentation (red), and co-adaptive scheduling (purple). Our work (gold) bridges the heterogeneity-aware and fragmentation-aware lines.}
+  \label{fig:literature_genealogy}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{fig4_eval_methodology.png}
+  \caption{Evaluation methodology bridging Gavel's round-based simulation (dynamic arrivals/departures, measuring JCT) with FGD's inflation methodology (monotonic fill, measuring fragmentation). Phase 1 replicates each system independently; Phases 2--3 evaluate the combined system using Gavel's round-based approach with FGD placement.}
+  \label{fig:eval_methodology}
+\end{figure}
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\columnwidth]{fig2_topology.png}
   \caption{Node topology determines fragmentation severity. Left: uniform 8-GPU nodes produce 2--8\% fragmentation regardless of placement. Right: mixed node sizes (1--8 GPUs) produce 15--40\% fragmentation because scattered fragments across small nodes cannot be consolidated. FGD placement helps only in the mixed case.}
   \label{fig:topology}
+\end{figure}
+
+\section{Per-Utilization Combined Results}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{fig7_combined_cluster_h.png}
+  \caption{Gavel+FGD on Cluster H (mixed node sizes, Max-Min Fairness) vs. cluster utilization. FGD placement (black) reduces fragmentation rate by 30--40\% vs. Random (blue) at moderate utilization. BestFit (orange) is intermediate. Strided/Gavel default (brown) performs similarly to Random. Error bands: $\pm$1 std over 3 seeds.}
+  \label{fig:combined_cluster_h}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{fig8_combined_uniform.png}
+  \caption{Gavel+FGD on Alibaba Split (uniform 8-GPU nodes) vs. cluster utilization. All placement strategies converge -- fragmentation rates are identical regardless of placement policy. Node topology uniformity eliminates the fragmentation problem FGD targets.}
+  \label{fig:combined_uniform}
+\end{figure}
+
+\section{Wall Time Analysis}
+Fig.~\ref{fig:wall_time} reports simulation wall time across all experiment sets, totaling approximately 850 experiments on Stanford FarmShare (Intel Xeon, no GPU required for simulation).
+
+Panel (a) shows Gavel replication experiments on the Philly trace (108 GPUs).
+Wall time increases exponentially near the saturation knee (2--3 jobs/hr for multi-GPU, 6--7 for single-GPU), where experiments hit the 24-hour SLURM time limit.
+Sub-saturation runs complete in under 1 hour.
+
+Panel (b) shows the combined Gavel+FGD experiments on Cluster H (5,592 GPUs).
+Wall time remains flat at 1--6 minutes across all arrival rates, reflecting the relatively fast LP solves at this scale.
+All placement strategies have comparable wall time.
+
+Panel (c) shows Alibaba Split experiments (6,212 GPUs, 12 heterogeneous types).
+Wall time decreases from 5+ minutes at low load to under 1 minute at high load.
+The higher cost at low arrival rates reflects the LP solver processing more scheduling rounds before the measurement window completes.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_wall_time.png}
+  \caption{Simulation wall time vs. arrival rate across experiment sets. (a)~Gavel replication (Philly, log scale): exponential blowup near saturation. (b)~Combined Cluster H: flat at 1--6 minutes. (c)~Combined Alibaba: decreasing with load as fewer rounds are needed. Mean $\pm$ std over seeds.}
+  \label{fig:wall_time}
+\end{figure}
+
+\section{Visualization Tool}
+To support interactive exploration of scheduling behavior across 843 experiments, we developed a web-based visualization tool (Fig.~\ref{fig:viz_tool}).
+The tool loads experiment telemetry from a custom binary format hosted on Azure Blob Storage, decoded in a Web Worker for responsive interaction.
+
+Key features include:
+\begin{itemize}
+\item \textbf{Side-by-side comparison} of two experiments with synchronized playback (Fig.~\ref{fig:viz_tool}, top), enabling direct visual comparison of placement strategies under identical workloads.
+\item \textbf{Time-series charts} showing utilization, JCT distributions, and fragmentation metrics over the simulation timeline.
+\item \textbf{Aggregate results dashboard} (Fig.~\ref{fig:viz_results}) displaying replication curves with digitized paper reference overlays across all arrival rates, seeds, and policies.
+\item \textbf{Filtering} by trace, figure, scheduler, placement mode, load, and seed, with experiment counts shown per filter value.
+\end{itemize}
+
+The tool was instrumental in debugging saturation detection, validating replication accuracy against paper figures, and identifying the node-topology dependence of fragmentation.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_viz_timeseries.png}
+  \caption{Visualization tool: side-by-side comparison view. Two Alibaba experiments (FGD vs. Random placement at 60 jobs/hr) are loaded simultaneously. Filter panels allow selection by trace, figure type, scheduler, placement, load, and seed. The timeline shows simulation phase (warmup/measurement/cooldown) with synchronized playback controls.}
+  \label{fig:viz_tool}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{fig_viz_results.png}
+  \caption{Visualization tool: aggregate results dashboard. Replication curves for all Gavel and FGD figure types are shown with digitized paper reference overlays, enabling rapid visual validation across the full experiment matrix.}
+  \label{fig:viz_results}
 \end{figure}
 
 \end{document}
