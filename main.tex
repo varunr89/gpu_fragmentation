@@ -326,20 +326,6 @@ G2 GPUs account for roughly 71\% of cluster capacity, and most jobs can run only
 As a result, only multi-type-compatible jobs influence the LP allocation.
 The POA signal steers these flexible jobs toward GPU types with higher placement opportunity, helping preserve larger contiguous GPU blocks and reducing fragmentation under heavy load.
 
-\subsection{Workload Stationarity and Placement Sensitivity}
-FGD's placement objective is defined with respect to a task-popularity distribution~\cite{FGD}.
-When arrivals are approximately stationary, this assumed mix is a good proxy for near-future demand, and gradient-based placement remains effective.
-This also explains why Monte Carlo-style evaluation (sampling with replacement) can make FGD appear consistently strong: the generated stream is smoothed toward a stable distribution.
-
-Under trace-ordered or phased arrivals, however, demand composition can drift over time.
-In this regime, the assumed mix can diverge from immediate demand, and node ranking can become misaligned with what the next jobs need, increasing fragmentation and pending demand.
-In other words, FGD is distribution-conditioned rather than universally dominant.
-
-In Gavel+FGD, this sensitivity is mitigated but not eliminated.
-Gavel's round-based allocation adapts each round and can absorb part of placement error by changing which jobs are eligible on each GPU type.
-But node-level placement still depends on a fixed workload prior, so mismatch under non-stationary arrivals can persist at node selection time.
-
-
 \section{Limitations}
 % talk simultaion, policy limitations, allow space for previous FGD sensitivity
 Our evaluation relies entirely on trace-driven simulation, which introduces several sources of potential bias.
@@ -352,9 +338,11 @@ Our simulator does not model such feedback effects, and the magnitude of this bi
 
 % ======== Kim: Review point below (should summarize your findings) =====
 \textbf{Workload Stationarity.}
-FGD's fragmentation measure is defined with respect to a fixed task-popularity distribution, and our arrival-order study (Table~\ref{tab:arrival_order_pending}) confirms that FGD is sensitive to deviations from this assumption.
-In production clusters, workload composition shifts as new model architectures emerge and team priorities change.
-Our evaluation uses Monte Carlo sampling or fixed trace replay, both of which smooth over such non-stationarity and may overstate FGD's effectiveness relative to a live deployment with distributional drift.
+FGD's fragmentation measure assumes a fixed task-popularity distribution, and our arrival-order study (Table~\ref{tab:arrival_order_pending}) shows that its effectiveness degrades when the workload mix shifts.
+This helps explain why Monte Carlo evaluation can make FGD look consistently strong: sampling with replacement smooths arrivals toward a stationary distribution.
+In production, however, workload composition evolves over time, so fixed-prior evaluation may overstate FGD's benefit under distributional drift.
+In Gavel+FGD, round-based allocation partly mitigates this effect by adapting job eligibility each round, but node placement still relies on a fixed workload prior.
+
 
 \textbf{Migration and Preemption Costs.}
 Gavel's round-based mechanism assumes jobs can be checkpointed and migrated between GPUs with negligible overhead.
