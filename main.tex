@@ -138,7 +138,24 @@ We integrate FGD into Gavel as a two-stage architecture (Fig.~\ref{fig:architect
 Gavel's policy layer solves an LP for time-fraction allocations per GPU type, and FGD then selects the physical node with the minimum fragmentation gradient within the allocated type.
 This preserves policy-level optimization while adding fragmentation awareness.
 
-Because the LP reasons about aggregate GPU-type capacity while placement depends on node-level free-slot structure, we also examine a lightweight coordination mechanism (Section~VI-D) as an exploratory extension.
+\textbf{Phase 2b: Allocation--Placement Coordination (GavelFGD+).}
+Although the LP reasons about aggregate GPU-type capacity while placement depends on node-level free-slot structure, limited coordination between the two layers may improve packing.
+We augment the LP objective with a \textit{Placement-Opportunity-Aware} (POA) signal derived from current cluster state.
+For each GPU type $t$ and job demand $d$, the scheduler computes:
+\[
+\text{poa\_score}[t,d] =
+\frac{\#\text{nodes with } \ge d \text{ free GPUs}}
+{\#\text{nodes of type } t}.
+\]
+This score represents the fraction of nodes that can immediately accommodate a job of size $d$.
+The LP objective becomes:
+\[
+\max \min_j \text{eff\_throughput}(j)
++
+\mu \sum_{j,t} \text{poa\_score}[t,d_j] \cdot x_{j,t},
+\]
+where $x_{j,t}$ is the fraction of time job $j$ is allocated to GPU type $t$ and $\mu$ controls coordination strength.
+At low utilization, POA scores are similar across types and the LP solution is largely unchanged; as utilization rises and large contiguous slots become scarce, scores diverge, steering flexible jobs toward types where placement is more feasible.
 
 \textbf{Phase 3: Evaluation.}
 We test on two Alibaba cluster topologies to isolate the effect of node-size diversity:
@@ -190,7 +207,8 @@ We ran 504 experiments across three configurations from the original Gavel paper
 
 Fig.~\ref{fig:gavel_replication} overlays our results against digitized paper references.
 Gavel's heterogeneity-aware policy reduces average JCT by 20--70\% compared to the baseline.
-Sub-saturation error is small (3.05 hours RMSE); larger deviations appear only near the saturation knee where our simulator saturates at a slightly different load point than the paper reference, likely due to underspecified queue management details.
+Sub-saturation error is small (3.05 hours RMSE); larger deviations appear only near the saturation knee where our simulator saturates at a slightly different load point.
+We attribute this to queue management: the original Gavel likely uses backfilling or priority-based preemption for pending jobs that is not fully specified in the paper, whereas our implementation uses strictly FIFO ordering for the pending queue.
 
 \subsection{FGD Replication}
 We replicate FGD's standalone evaluation on Alibaba Cluster H using the inflation methodology~\cite{FGD}, comparing six placement policies.
@@ -199,7 +217,7 @@ FGD maintains the lowest fragmentation throughout the demand range.
 At 80\% demand, Random placement fragments 85\% of unallocated GPUs while FGD fragments only 42\%.
 The fragmentation-to-total ratio stays below 8\% with FGD, and relative error subplots confirm close agreement across the full demand range.
 
-A separate arrival-order sensitivity study (Appendix Table~\ref{tab:arrival_order_pending}) shows that FGD's effectiveness depends on workload ordering assumptions; we discuss this robustness caveat in Section~VI-E.
+A separate arrival-order sensitivity study (Appendix Table~\ref{tab:arrival_order_pending}) shows that FGD's effectiveness depends on workload ordering assumptions; we discuss this robustness caveat in Section~VI-D.
 
 
 \section{Combined Gavel+FGD Results}
@@ -225,7 +243,8 @@ The residual separation arises because even uniform 8-GPU nodes exhibit fragment
 \subsection{Utilization Impact of Placement}
 Fragmentation directly reduces usable cluster capacity.
 Fig.~\ref{fig:util_impact} shows that on Cluster~H, Strided placement caps at 89\% utilization under high load while BestFit and FGD reach 94\%, a gap of 5 percentage points representing approximately 280 recoverable GPUs on a 5,592-GPU cluster.
-Panel~(b) shows \textit{effective capacity} (utilization minus fragmentation rate), which captures the fraction of the cluster doing useful work.
+Panel~(b) shows \textit{effective capacity}, defined as utilization minus fragmentation rate.
+Because fragmented GPUs are allocated but unusable by any waiting job, subtracting the fragmentation rate from raw utilization yields the fraction of cluster capacity doing useful work.
 At 250 jobs/hr, Strided achieves 64\% effective capacity while BestFit reaches 78\% -- a 13-point gap, translating to 17\% more completed jobs.
 
 Individual job completion times, measured over the steady-state window (jobs 4000 to 5000), are identical across all placements to within numerical precision.
@@ -262,37 +281,21 @@ Running Gavel's LP-based allocation on the Alibaba cluster (6,200 GPUs, up to 1,
 At Alibaba scale, the LP solver consumes 48\% of per-round runtime (3.0s per solve), compared to 8\% at Philly scale.
 We addressed this through solver warm-starting and logging optimizations, reducing per-round time from 1.58s to 0.64s -- sufficient for our evaluation but highlighting that Gavel's LP formulation faces scalability limits at production cluster sizes.
 
-\subsection{Improving LP Allocation with Placement Opportunity Signals}
-
-Although allocation and placement affect different outcomes (Section~VI-B), the two layers observe different views of cluster state: the LP reasons about aggregate GPU-type capacity, whereas placement operates on node-level free-slot structure.
-To explore whether limited coordination can improve packing efficiency, we evaluate a variant, GavelFGD+, that augments the LP objective with a \textit{Placement-Opportunity-Aware} (POA) signal derived from current cluster state.
-
-For each GPU type $t$ and job demand $d$, the scheduler computes:
-
-\[
-\text{poa\_score}[t,d] =
-\frac{\#\text{nodes with } \ge d \text{ free GPUs}}
-{\#\text{nodes of type } t}.
-\]
-
-This score represents the fraction of nodes that can immediately accommodate a job of size $d$. 
-The LP objective becomes:
-
-\[
-\max \min_j \text{normalized\_throughput}(j)
-+
-\mu \sum_{j,t} \text{poa\_score}[t,d_j] \cdot x_{j,t},
-\]
-
-where $x_{j,t}$ is the fraction of time job $j$ is allocated to GPU type $t$.
-
-This term steers flexible jobs toward GPU types where placement is currently more feasible.
-At low utilization, POA scores are similar across types and the LP solution is largely unchanged; as utilization rises and large contiguous slots become scarce, scores diverge, guiding allocations toward types where placement is more likely to succeed.
+\subsection{POA Coordination Results}
 
 Fig.~\ref{fig:gavelfgd_absolute} (Appendix) compares Gavel, GavelFGD, and GavelFGD+ across utilization levels.
 FGD placement alone reduces fragmentation by 40--50\% relative to baseline Gavel.
 GavelFGD+ further improves packing at high load: at 85.4\% utilization (360 jobs/hr), fragmentation drops from 2.01\% to 0.47\%, a 76.7\% reduction relative to GavelFGD.
 The percentage of unallocated GPUs remains nearly identical across all three systems (Fig.~\ref{fig:gavelfgd_absolute}c), confirming that the improvement comes from more efficient packing rather than additional resources.
+
+\subsection{Robustness to Workload Ordering}
+
+FGD's placement decisions depend on a workload-popularity distribution that determines the fragmentation gradient.
+Table~\ref{tab:arrival_order_pending} (Appendix) tests this assumption by evaluating FGD under seven arrival orderings -- trace order, ascending/descending by GPU demand, and four phased orderings that group tasks by demand tier.
+FGD underperforms the simpler Clustering baseline in 5 of 7 orderings, accumulating 2--3$\times$ more pending GPU demand.
+It outperforms both baselines only in phased order 31042, where large jobs arrive first and saturate big nodes before small jobs fill remaining slots -- a pattern that aligns with FGD's gradient assumptions.
+Ascending and phased-ascending orderings are worst: small jobs scatter across nodes early, leaving fragmented remainders that FGD cannot consolidate for later large jobs.
+This sensitivity suggests that FGD's benefit is conditioned on workload stationarity and may degrade under distributional shift.
 
 \section{Limitations}
 Our evaluation relies entirely on trace-driven simulation, which introduces several sources of potential bias.
@@ -303,9 +306,8 @@ This may not hold in practice: scheduling decisions can alter queuing delays and
 Our simulator does not model such feedback effects.
 
 \textbf{Workload Stationarity.}
-FGD's fragmentation measure assumes a fixed task-popularity distribution, and our arrival-order study (Table~\ref{tab:arrival_order_pending}) shows that its effectiveness degrades when the workload mix shifts -- FGD underperforms Clustering in 5 of 7 orderings, performing best only in one phased configuration.
+As shown in Section~VI-D, FGD's effectiveness degrades under non-stationary workload orderings.
 Monte Carlo evaluation smooths arrivals toward a stationary distribution, which may overstate FGD's benefit under real distributional drift.
-Within Gavel+FGD, round-based allocation partly mitigates this by adapting job eligibility each round, but node placement still relies on a fixed workload prior.
 
 \textbf{Migration and Preemption Costs.}
 Gavel assumes jobs can be checkpointed and migrated with negligible overhead.
