@@ -341,60 +341,69 @@ The research design, methodology, and analysis are our own.
 \end{thebibliography}
 
 \clearpage
+\onecolumn
+\raggedbottom
 \appendix
 \section{Supplementary Figures}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\columnwidth]{fig_literature_genealogy.png}
-  \caption{Research lineage of GPU cluster scheduling. Color-coded by primary contribution: heterogeneity awareness (blue), fairness/priority (green), sharing/consolidation (orange), fragmentation (red), and co-adaptive scheduling (purple). Our work (gold) bridges the heterogeneity-aware and fragmentation-aware lines.}
-  \label{fig:literature_genealogy}
+  \begin{minipage}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{fig_literature_genealogy.png}
+    \caption{Research lineage of GPU cluster scheduling. Color-coded by primary contribution: heterogeneity awareness (blue), fairness/priority (green), sharing/consolidation (orange), fragmentation (red), and co-adaptive scheduling (purple). Our work (gold) bridges the heterogeneity-aware and fragmentation-aware lines.}
+    \label{fig:literature_genealogy}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{fig2_topology.png}
+    \caption{Node topology determines fragmentation severity. Left: uniform 8-GPU nodes produce 2--8\% fragmentation regardless of placement. Right: mixed node sizes (1--8 GPUs) produce 15--40\% fragmentation because scattered fragments across small nodes cannot be consolidated. FGD placement helps only in the mixed case.}
+    \label{fig:topology}
+  \end{minipage}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\columnwidth]{fig4_eval_methodology.png}
-  \caption{Evaluation methodology bridging Gavel's round-based simulation (dynamic arrivals/departures, measuring JCT) with FGD's inflation methodology (monotonic fill, measuring fragmentation). Phase 1 replicates each system independently; Phases 2--3 evaluate the combined system using Gavel's round-based approach with FGD placement.}
-  \label{fig:eval_methodology}
+  \begin{minipage}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{fig4_eval_methodology.png}
+    \caption{Evaluation methodology bridging Gavel's round-based simulation (dynamic arrivals/departures, measuring JCT) with FGD's inflation methodology (monotonic fill, measuring fragmentation). Phase 1 replicates each system independently; Phases 2--3 evaluate the combined system using Gavel's round-based approach with FGD placement.}
+    \label{fig:eval_methodology}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{fig7_combined_cluster_h.png}
+    \caption{Gavel+FGD on Cluster H (mixed node sizes, Max-Min Fairness) vs. cluster utilization. FGD placement (black) reduces fragmentation rate by 30--40\% vs. Random (blue) at moderate utilization. BestFit (orange) is intermediate. Strided (brown) performs similarly to Random. Error bands: $\pm$1 std over 3 seeds.}
+    \label{fig:combined_cluster_h}
+  \end{minipage}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\columnwidth]{fig2_topology.png}
-  \caption{Node topology determines fragmentation severity. Left: uniform 8-GPU nodes produce 2--8\% fragmentation regardless of placement. Right: mixed node sizes (1--8 GPUs) produce 15--40\% fragmentation because scattered fragments across small nodes cannot be consolidated. FGD placement helps only in the mixed case.}
-  \label{fig:topology}
-\end{figure}
-
-\FloatBarrier
 \section{Per-Utilization Combined Results}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\columnwidth]{fig7_combined_cluster_h.png}
-  \caption{Gavel+FGD on Cluster H (mixed node sizes, Max-Min Fairness) vs. cluster utilization. FGD placement (black) reduces fragmentation rate by 30--40\% vs. Random (blue) at moderate utilization. BestFit (orange) is intermediate. Strided (brown) performs similarly to Random. Error bands: $\pm$1 std over 3 seeds.}
-  \label{fig:combined_cluster_h}
+  \begin{minipage}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{fig8_combined_uniform.png}
+    \caption{Gavel+FGD on Alibaba Split (uniform 8-GPU nodes) vs. cluster utilization. All placement strategies converge -- fragmentation rates are identical regardless of placement policy. Node topology uniformity eliminates the fragmentation problem FGD targets.}
+    \label{fig:combined_uniform}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=0.85\linewidth]{gavelfgd_combined_absolute.png}
+    \caption{Performance comparison between Gavel, GavelFGD, and GavelFGD+ on the Alibaba cluster under steady-state workloads. (a)~Fragmentation rate, (b)~total cluster fragmentation, and (c)~percentage of unallocated GPUs across seven utilization levels.}
+    \label{fig:gavelfgd_absolute}
+  \end{minipage}
 \end{figure}
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\columnwidth]{fig8_combined_uniform.png}
-  \caption{Gavel+FGD on Alibaba Split (uniform 8-GPU nodes) vs. cluster utilization. All placement strategies converge -- fragmentation rates are identical regardless of placement policy. Node topology uniformity eliminates the fragmentation problem FGD targets.}
-  \label{fig:combined_uniform}
-\end{figure}
-
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=0.85\columnwidth]{gavelfgd_combined_absolute.png}
-  \caption{Performance comparison between Gavel, GavelFGD, and GavelFGD+ on the Alibaba cluster under steady-state workloads. (a)~Fragmentation rate, (b)~total cluster fragmentation, and (c)~percentage of unallocated GPUs across seven utilization levels. Fragmentation-aware placement substantially reduces cluster fragmentation, and the POA-enhanced GavelFGD+ further improves packing efficiency at high utilization.}
-  \label{fig:gavelfgd_absolute}
-\end{figure}
-
-\FloatBarrier
 \section{Wall Time Analysis}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\columnwidth]{fig_wall_time.png}
+  \includegraphics[width=0.48\textwidth]{fig_wall_time.png}
   \caption{Simulation wall time vs. arrival rate across experiment sets. (a)~Gavel replication (Philly, log scale): exponential blowup near saturation. (b)~Combined Cluster H: flat at 1--6 minutes. (c)~Combined Alibaba: decreasing with load as fewer rounds are needed. Mean $\pm$ std over seeds.}
   \label{fig:wall_time}
 \end{figure}
@@ -404,7 +413,6 @@ Panel (a) shows Gavel replication on the Philly trace: wall time increases expon
 Panel (b) shows Cluster H experiments: wall time remains flat at 1--6 minutes across all arrival rates.
 Panel (c) shows Alibaba Split experiments: wall time decreases from 5+ minutes at low load to under 1 minute at high load, reflecting fewer scheduling rounds needed at higher arrival rates.
 
-\FloatBarrier
 \section{Visualization Tool}
 To support interactive exploration of scheduling behavior across 843 experiments, we developed a web-based visualization tool (Fig.~\ref{fig:viz_tool}).
 The tool loads experiment telemetry from a custom binary format hosted on Azure Blob Storage and decodes it in a Web Worker for responsive interaction.
@@ -412,19 +420,18 @@ Key features include side-by-side comparison of two experiments with synchronize
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\columnwidth]{fig_viz_timeseries.png}
+  \includegraphics[width=0.48\textwidth]{fig_viz_timeseries.png}
   \caption{Visualization tool: side-by-side comparison view. Two Alibaba experiments (FGD vs. Random placement at 60 jobs/hr) with synchronized playback. Filter panels allow selection by trace, figure type, scheduler, placement, load, and seed.}
   \label{fig:viz_tool}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\columnwidth]{fig_viz_results.png}
+  \includegraphics[width=0.48\textwidth]{fig_viz_results.png}
   \caption{Visualization tool: aggregate results dashboard. Replication curves for all Gavel and FGD figure types with digitized paper reference overlays for visual validation across the full experiment matrix.}
   \label{fig:viz_results}
 \end{figure}
 
-\FloatBarrier
 \section{Task Arrival Order Study}
 Table~\ref{tab:arrival_order_pending} reports total pending task GPUs when cumulative arrived workload reaches 96\% of cluster GPU capacity. Higher values indicate more unscheduled GPU demand at the same near-saturation load point.
 
