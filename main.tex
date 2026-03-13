@@ -254,7 +254,7 @@ On uniform-node clusters (left panel), any job that fits on one node fits equall
 The placement decision is trivial because all choices produce the same fragmentation.
 On mixed-node clusters (right), a 3-GPU job cannot use scattered 1-GPU fragments across different nodes, so placement decisions directly determine whether capacity remains usable.
 
-Practically, clusters with uniform node sizes gain little from fragmentation-aware placement, while clusters that accumulate mixed hardware over time benefit substantially.
+This finding has practical implications: cloud providers deploying new clusters with uniform node sizes (e.g., standard 8-GPU servers) gain little from fragmentation-aware placement, while clusters that accumulate heterogeneous hardware over time, mixing older 1--2 GPU machines with newer 4--8 GPU servers, benefit substantially.
 
 \subsection{Policy Independence of Placement Effects}
 Our evaluation under both Max-Min Fairness and FIFO allocation policies shows that FGD's placement benefit is consistent regardless of the allocation policy.
@@ -275,15 +275,27 @@ The percentage of unallocated GPUs remains nearly identical across all three sys
 
 \subsection{Robustness to Workload Ordering}
 
-Table~\ref{tab:arrival_order_pending} (Appendix) evaluates FGD under seven arrival orderings.
+FGD's placement decisions depend on a workload-popularity distribution that determines the fragmentation gradient.
+Table~\ref{tab:arrival_order_pending} (Appendix) evaluates FGD under seven arrival orderings -- trace order, ascending/descending by GPU demand, and four phased orderings that group tasks by demand tier.
 FGD underperforms the simpler Clustering baseline in 5 of 7 orderings, accumulating 2--3$\times$ more pending GPU demand.
-It wins only when large jobs arrive first and saturate big nodes before small jobs fill remaining slots.
+It wins only when large jobs arrive first and saturate big nodes before small jobs fill remaining slots -- a pattern that aligns with FGD's gradient assumptions.
 Ascending orderings are worst: small jobs scatter early, leaving fragmented remainders that FGD cannot consolidate.
-This sensitivity suggests FGD's benefit is conditioned on workload stationarity.
+This sensitivity suggests FGD's benefit is conditioned on workload stationarity and may degrade under distributional shift.
 
 \section{Limitations}
-Our trace-driven simulation assumes the intervention does not affect the replayed trace~\cite{CAUSALSIM} and does not model migration costs (checkpoint serialization, data transfer, GPU warm-up).
-FGD's effectiveness also degrades under non-stationary workload orderings (Section~VI-D), and Monte Carlo evaluation may overstate its benefit under real distributional drift.
+Our evaluation relies entirely on trace-driven simulation, which introduces several sources of potential bias.
+
+\textbf{Simulation Fidelity.}
+Trace-driven simulation assumes the intervention does not affect the validity of the replayed trace~\cite{CAUSALSIM}.
+Scheduling decisions can alter queuing delays and resource contention, feeding back into job performance; our simulator does not model such feedback effects.
+
+\textbf{Workload Stationarity.}
+As shown in Section~VI-D, FGD's effectiveness degrades under non-stationary workload orderings.
+Monte Carlo evaluation smooths arrivals toward a stationary distribution, which may overstate FGD's benefit under real distributional drift.
+
+\textbf{Migration and Preemption Costs.}
+Gavel assumes jobs can be checkpointed and migrated with negligible overhead.
+In practice, migration incurs costs from checkpoint serialization, data transfer, and GPU warm-up that our simulator does not model.
 
 
 
