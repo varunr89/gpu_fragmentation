@@ -17,7 +17,7 @@
 \begin{document}
 
 \title{Pack Smart, Schedule Fair: Unifying Heterogeneity and Fragmentation Awareness in GPU Scheduling\\
-\thanks{*This paper was written as a final project report for Stanford's Advanced Networking and Distributed System CS244 course in Winter 2026.
+\thanks{*This paper was written as a final project report for Stanford's Advanced Networking and Distributed Systems CS244 course in Winter 2026.
 Thanks to Dr. Keith Winstein and Dr. David Mazi\`eres for their guidance and review.}
 }
 
@@ -60,7 +60,7 @@ While GPU sharing improves aggregate utilization, it introduces \textit{resource
 Production trace analysis from Alibaba clusters shows that fragmentation renders 21\% to 42\% of unallocated GPU resources unusable during normal operation \cite{ALIBABA, FGD}.
 
 Separately, heterogeneous GPU clusters require scheduling policies that account for varying per-model speedups across accelerator types.
-A ResNet-50 model sees a 10x throughput improvement moving from a K80 to a V100, while an A3C reinforcement learning model sees only 2x\cite{GAVEL}.
+A ResNet-50 model sees a 10x throughput improvement moving from a K80 to a V100, while an A3C reinforcement learning model sees only 2x~\cite{GAVEL}.
 
 Two recent systems address complementary aspects of this problem.
 Gavel \cite{GAVEL} expresses scheduling policies as optimization problems over an effective throughput abstraction, enabling heterogeneity-aware allocation with support for fairness, makespan minimization, and hierarchical policies.
@@ -68,7 +68,7 @@ However, Gavel was validated exclusively on whole-GPU workloads where fragmentat
 FGD \cite{FGD} defines a statistical fragmentation measure and places tasks toward the steepest descent of this measure, reducing unallocated GPUs by up to 49\%.
 However, FGD operates under FIFO ordering without a flexible policy framework.
 
-At the same time, these two mechanisms operate on different levels of abstraction. 
+At the same time, these two mechanisms operate on different levels of abstraction.
 Gavel's LP reasons about aggregate capacity at the GPU-type level, while FGD 
 makes node-level placement decisions based on the instantaneous distribution 
 of free slots. This separation simplifies system design but also raises a natural question: whether limited coordination between allocation and placement could further improve packing efficiency when clusters become fragmented.
@@ -237,7 +237,7 @@ The residual separation arises because even uniform 8-GPU nodes exhibit fragment
 \end{figure}
 
 \subsection{Utilization Impact of Placement}
-Fragmentation is not just a cosmetic metric, but it also directly reduces cluster capacity.
+Fragmentation is not just a cosmetic metric; it directly reduces cluster capacity.
 Fig.~\ref{fig:util_impact} shows that on Cluster~H, Strided placement caps at 89\% utilization under high load while BestFit and FGD reach 94\%, a gap of 5 percentage points, representing approximately 280 GPUs of recoverable capacity on a 5,592-GPU cluster.
 At typical cloud GPU rates of \$2--3 per GPU-hour on average \cite{GCPGPU}, recovering 280 GPUs translates to approximately \$400K--\$600K per month in average reclaimed capacity, illustrating that placement-level fragmentation carries substantial cost at production scale.
 Panel~(b) shows \textit{effective capacity} (utilization minus fragmentation rate), which captures the fraction of the cluster doing useful work.
@@ -278,7 +278,6 @@ At Alibaba scale, the LP solver consumes 48\% of per-round runtime (3.0s per sol
 We addressed this through solver warm-starting and logging optimizations, reducing per-round time from 1.58s to 0.64s -- sufficient for our evaluation but highlighting that Gavel's LP formulation faces scalability limits at production cluster sizes.
 
 \subsection{Improving LP Allocation with Placement Opportunity Signals}
-% Jiayu: distribution shift experiments and additional policy analysis
 
 While allocation and placement largely operate on orthogonal dimensions, the two layers do not observe the same state: the LP reasons about aggregate GPU-type capacity, whereas placement operates on node-level free-slot structure. 
 To explore whether limited coordination between these layers can improve packing efficiency, we evaluate a variant that augments the LP objective with a \textit{Placement-Opportunity-Aware} (POA) signal derived from the current cluster state.
@@ -336,7 +335,6 @@ This \textit{exogenous trace assumption} may not hold in practice: scheduling de
 For example, a placement decision that increases co-located interference could change a job's effective throughput, invalidating the profile recorded under a different policy.
 Our simulator does not model such feedback effects, and the magnitude of this bias in GPU scheduling traces remains an open question.
 
-% ======== Kim: Review point below (should summarize your findings) =====
 \textbf{Workload Stationarity.}
 FGD's fragmentation measure assumes a fixed task-popularity distribution, and our arrival-order study (Table~\ref{tab:arrival_order_pending}) shows that its effectiveness degrades when the workload mix shifts.
 This helps explain why Monte Carlo evaluation can make FGD look consistently strong: sampling with replacement smooths arrivals toward a stationary distribution.
@@ -396,7 +394,7 @@ The research design, methodology, and analysis are our own.
 \bibitem{HIVED} Zhao, H., Han, Z., Yang, Z., et al. ``HiveD: Sharing a GPU Cluster for Deep Learning with Guarantees.'' OSDI 2020. \href{https://www.usenix.org/conference/osdi20/presentation/zhao-hanyu}{Usenix Web Link}.
 \bibitem{POLLUX} Qiao, A., Choe, S.K., Subramanya, S.J., et al. ``Pollux: Co-adaptive Cluster Scheduling for Goodput-Optimized Deep Learning.'' OSDI 2021. \href{https://www.usenix.org/conference/osdi21/presentation/qiao}{Usenix Web Link}.
 \bibitem{SIA} Jayaram Subramanya, S., Zhong, D., Choudhury, S., et al. ``Sia: Heterogeneity-aware, Goodput-optimized ML-Cluster Scheduling.'' SOSP 2023. \href{https://dl.acm.org/doi/10.1145/3600006.3613175}{ACM Web Link}.
-\bibitem{GCPGPU} Google Cloud. ``GPU Pricing.'' 2026. \href{https://cloud.google.com/compute/gpus-pricing?hl=en}{Google Web Link}
+\bibitem{GCPGPU} Google Cloud. ``GPU Pricing.'' 2026. \href{https://cloud.google.com/compute/gpus-pricing?hl=en}{Google Web Link}.
 \end{thebibliography}
 
 \clearpage
