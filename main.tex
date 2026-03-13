@@ -17,7 +17,7 @@
 \begin{document}
 
 \title{Pack Smart, Schedule Fair: Unifying Heterogeneity and Fragmentation Awareness in GPU Scheduling\\
-\thanks{*This paper was written as a final project report for Stanford's Advanced Networking and Distributed System CS244 course in Winter 2026.
+\thanks{*This paper was written as a final project report for Stanford's Advanced Networking and Distributed Systems CS244 course in Winter 2026.
 Thanks to Dr. Keith Winstein and Dr. David Mazi\`eres for their guidance and review.}
 }
 
@@ -68,7 +68,8 @@ However, Gavel was validated exclusively on whole-GPU workloads where fragmentat
 FGD \cite{FGD} defines a statistical fragmentation measure and places tasks toward the steepest descent of this measure, reducing unallocated GPUs by up to 49\%.
 However, FGD operates under FIFO ordering without a flexible policy framework.
 
-Because these two mechanisms operate at different levels of abstraction -- Gavel at the GPU-type level, FGD at the node level -- their integration also raises a natural question: whether limited coordination between allocation and placement could further improve packing efficiency.
+These two mechanisms operate at different levels of abstraction: Gavel's LP reasons about aggregate capacity at the GPU-type level, while FGD makes node-level placement decisions based on the instantaneous distribution of free slots.
+This separation simplifies system design but also raises a natural question: whether limited coordination between allocation and placement could further improve packing efficiency when clusters become fragmented.
 
 We show that the value of fragmentation-aware placement depends not on GPU type heterogeneity but on \textit{node topology diversity}, specifically the variance in GPUs per node across a cluster.
 On clusters with mixed node sizes (1, 2, 4, and 8 GPUs per node), FGD-style placement reduces fragmentation by 30--40\% and recovers up to 280 GPUs of usable capacity.
