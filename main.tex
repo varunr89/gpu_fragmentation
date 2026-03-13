@@ -68,8 +68,7 @@ However, Gavel was validated exclusively on whole-GPU workloads where fragmentat
 FGD \cite{FGD} defines a statistical fragmentation measure and places tasks toward the steepest descent of this measure, reducing unallocated GPUs by up to 49\%.
 However, FGD operates under FIFO ordering without a flexible policy framework.
 
-These two mechanisms operate at different levels of abstraction: Gavel's LP reasons about aggregate capacity at the GPU-type level, while FGD makes node-level placement decisions based on the instantaneous distribution of free slots.
-This separation simplifies system design but also raises a natural question: whether limited coordination between allocation and placement could further improve packing efficiency when clusters become fragmented.
+Because these two mechanisms operate at different levels of abstraction -- Gavel at the GPU-type level, FGD at the node level -- their integration raises a natural question: whether limited coordination between allocation and placement could further improve packing efficiency.
 
 We show that the value of fragmentation-aware placement depends not on GPU type heterogeneity but on \textit{node topology diversity}, specifically the variance in GPUs per node across a cluster.
 On clusters with mixed node sizes (1, 2, 4, and 8 GPUs per node), FGD-style placement reduces fragmentation by 30--40\% and recovers up to 280 GPUs of usable capacity.
@@ -127,9 +126,7 @@ Our work bridges the heterogeneity-aware and fragmentation-aware lines.
 
 \section{Methodology}
 
-Our approach proceeds in three phases: baseline replication, integration, and comparative evaluation.
-A key challenge is that Gavel uses round-based simulation with dynamic arrivals and departures, measuring job completion time (JCT), while FGD uses workload inflation with monotonic fill, measuring fragmentation.
-Our combined evaluation bridges both methodologies (see Fig.~\ref{fig:eval_methodology} in the Appendix).
+Our approach proceeds in three phases: baseline replication, integration, and comparative evaluation (see Fig.~\ref{fig:eval_methodology} in the Appendix for how we bridge Gavel's round-based simulation with FGD's inflation methodology).
 
 \textbf{Phase 1: Baseline Replication.}
 We replicate Gavel on the Microsoft Philly trace (108 GPUs: 36 V100, 36 P100, 36 K80) and replicate FGD on the Alibaba v2023 trace~\cite{ALIBABA} (Cluster H: 5,592 GPUs, 1,200 nodes with mixed node sizes of 1, 2, 4, and 8 GPUs).
@@ -140,23 +137,12 @@ Gavel's policy layer solves an LP for time-fraction allocations per GPU type, an
 This preserves policy-level optimization while adding fragmentation awareness.
 
 \textbf{Phase 2b: Allocation--Placement Coordination (GavelFGD+).}
-Although the LP reasons about aggregate GPU-type capacity while placement depends on node-level free-slot structure, limited coordination between the two layers may improve packing.
-We augment the LP objective with a \textit{Placement-Opportunity-Aware} (POA) signal derived from current cluster state.
-For each GPU type $t$ and job demand $d$, the scheduler computes:
-\[
-\text{poa\_score}[t,d] =
-\frac{\#\text{nodes with } \ge d \text{ free GPUs}}
-{\#\text{nodes of type } t}.
-\]
-This score represents the fraction of nodes that can immediately accommodate a job of size $d$.
-The LP objective becomes:
-\[
-\max \min_j \text{eff\_throughput}(j)
-+
-\mu \sum_{j,t} \text{poa\_score}[t,d_j] \cdot x_{j,t},
-\]
-where $x_{j,t}$ is the fraction of time job $j$ is allocated to GPU type $t$ and $\mu$ controls coordination strength.
-At low utilization, POA scores are similar across types and the LP solution is largely unchanged; as utilization rises and large contiguous slots become scarce, scores diverge, steering flexible jobs toward types where placement is more feasible.
+We also explore augmenting the LP objective with a \textit{Placement-Opportunity-Aware} (POA) signal.
+For each GPU type $t$ and job demand $d$:
+$\text{poa\_score}[t,d] = {\#\text{nodes with } \ge d \text{ free GPUs}}\,/\,{\#\text{nodes of type } t}$.
+The LP objective becomes
+$\max \min_j \text{eff\_throughput}(j) + \mu \sum_{j,t} \text{poa\_score}[t,d_j] \cdot x_{j,t}$,
+steering flexible jobs toward GPU types where placement is currently more feasible.
 
 \textbf{Phase 3: Evaluation.}
 We test on two Alibaba cluster topologies to isolate the effect of node-size diversity:
@@ -268,9 +254,7 @@ On uniform-node clusters (left panel), any job that fits on one node fits equall
 The placement decision is trivial because all choices produce the same fragmentation.
 On mixed-node clusters (right), a 3-GPU job cannot use scattered 1-GPU fragments across different nodes, so placement decisions directly determine whether capacity remains usable.
 
-This finding has practical implications.
-Cloud providers deploying new clusters with uniform node sizes (e.g., standard 8-GPU servers) gain little from fragmentation-aware placement.
-However, clusters that accumulate heterogeneous hardware over time, mixing older 1--2 GPU machines with newer 4--8 GPU servers, benefit substantially from FGD-style placement.
+Practically, clusters with uniform node sizes gain little from fragmentation-aware placement, while clusters that accumulate mixed hardware over time benefit substantially.
 
 \subsection{Policy Independence of Placement Effects}
 Our evaluation under both Max-Min Fairness and FIFO allocation policies shows that FGD's placement benefit is consistent regardless of the allocation policy.
@@ -291,28 +275,15 @@ The percentage of unallocated GPUs remains nearly identical across all three sys
 
 \subsection{Robustness to Workload Ordering}
 
-FGD's placement decisions depend on a workload-popularity distribution that determines the fragmentation gradient.
-Table~\ref{tab:arrival_order_pending} (Appendix) tests this assumption by evaluating FGD under seven arrival orderings -- trace order, ascending/descending by GPU demand, and four phased orderings that group tasks by demand tier.
+Table~\ref{tab:arrival_order_pending} (Appendix) evaluates FGD under seven arrival orderings.
 FGD underperforms the simpler Clustering baseline in 5 of 7 orderings, accumulating 2--3$\times$ more pending GPU demand.
-It outperforms both baselines only in phased order 31042, where large jobs arrive first and saturate big nodes before small jobs fill remaining slots -- a pattern that aligns with FGD's gradient assumptions.
-Ascending and phased-ascending orderings are worst: small jobs scatter across nodes early, leaving fragmented remainders that FGD cannot consolidate for later large jobs.
-This sensitivity suggests that FGD's benefit is conditioned on workload stationarity and may degrade under distributional shift.
+It wins only when large jobs arrive first and saturate big nodes before small jobs fill remaining slots.
+Ascending orderings are worst: small jobs scatter early, leaving fragmented remainders that FGD cannot consolidate.
+This sensitivity suggests FGD's benefit is conditioned on workload stationarity.
 
 \section{Limitations}
-Our evaluation relies entirely on trace-driven simulation, which introduces several sources of potential bias.
-
-\textbf{Simulation Fidelity.}
-Trace-driven simulation assumes the intervention does not affect the validity of the replayed trace~\cite{CAUSALSIM}.
-This may not hold in practice: scheduling decisions can alter queuing delays and resource contention, feeding back into job performance.
-Our simulator does not model such feedback effects.
-
-\textbf{Workload Stationarity.}
-As shown in Section~VI-D, FGD's effectiveness degrades under non-stationary workload orderings.
-Monte Carlo evaluation smooths arrivals toward a stationary distribution, which may overstate FGD's benefit under real distributional drift.
-
-\textbf{Migration and Preemption Costs.}
-Gavel assumes jobs can be checkpointed and migrated with negligible overhead.
-In practice, migration incurs costs from checkpoint serialization, data transfer, and GPU warm-up that our simulator does not model.
+Our trace-driven simulation assumes the intervention does not affect the replayed trace~\cite{CAUSALSIM} and does not model migration costs (checkpoint serialization, data transfer, GPU warm-up).
+FGD's effectiveness also degrades under non-stationary workload orderings (Section~VI-D), and Monte Carlo evaluation may overstate its benefit under real distributional drift.
 
 
 
@@ -327,9 +298,8 @@ Through replication of both systems (504 Gavel experiments on Philly, standalone
 \item Fragmentation-aware placement provides no benefit on uniform-node clusters, where all strategies converge.
 \end{enumerate}
 
-The central insight is that fragmentation in GPU clusters is driven by \textit{node topology diversity}, specifically the variance in GPUs per node, rather than GPU type heterogeneity.
-This suggests that cluster architects can mitigate fragmentation either through hardware homogeneity (uniform node sizes) or through software (FGD-style placement).
-Our two-stage design demonstrates that allocation policy and placement strategy address orthogonal concerns and can be composed independently, while limited coordination between the two layers may further improve packing efficiency under heavy fragmentation.
+The central insight is that fragmentation is driven by \textit{node topology diversity} (variance in GPUs per node), not GPU type heterogeneity.
+Cluster architects can mitigate fragmentation through hardware homogeneity or software (FGD-style placement), and our two-stage design shows that allocation and placement address orthogonal concerns that compose independently.
 
 
 \section*{Acknowledgment}
