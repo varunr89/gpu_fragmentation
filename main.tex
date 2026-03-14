@@ -204,7 +204,7 @@ FGD maintains the lowest fragmentation throughout the demand range.
 At 80\% demand, Random placement fragments 85\% of unallocated GPUs while FGD fragments only 42\%.
 The fragmentation-to-total ratio stays below 8\% with FGD, and relative error subplots confirm close agreement across the full demand range.
 
-A separate arrival-order sensitivity study (Appendix Table~\ref{tab:arrival_order_pending}) shows that FGD's effectiveness depends on workload ordering assumptions; we discuss this robustness caveat in Section~VI-D.
+A separate arrival-order sensitivity study (Appendix Table~\ref{tab:arrival_order_pending}) shows that FGD's effectiveness depends on workload ordering assumptions; we discuss this robustness caveat in Section~VI-E.
 
 
 \section{Combined Gavel+FGD Results}
@@ -290,7 +290,7 @@ Trace-driven simulation assumes the intervention does not affect the validity of
 Scheduling decisions can alter queuing delays and resource contention, feeding back into job performance; our simulator does not model such feedback effects.
 
 \textbf{Workload Stationarity.}
-As shown in Section~VI-D, FGD's effectiveness degrades under non-stationary workload orderings.
+As shown in Section~VI-E, FGD's effectiveness degrades under non-stationary workload orderings.
 Monte Carlo evaluation smooths arrivals toward a stationary distribution, which may overstate FGD's benefit under real distributional drift.
 
 \textbf{Migration and Preemption Costs.}
