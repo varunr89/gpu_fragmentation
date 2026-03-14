@@ -58,67 +58,16 @@
 % ============================================================
 \begin{frame}{Two Problems Reduce Effective GPU Capacity}
 
-\begin{columns}[T]
-\begin{column}{0.55\textwidth}
-
-\textbf{1. GPU Heterogeneity Unawareness}\\[2pt]
-\small Different models have vastly different speedups per GPU type.
-ResNet-50: 10$\times$ faster on V100 vs. K80.
-A3C: only 2$\times$.
-Ignoring this wastes throughput.
-
-\medskip
-
-\textbf{2. Resource Fragmentation}\\[2pt]
-\small GPU sharing splits GPUs across tasks, but leaves fragments too small for any waiting job.
-These cannot consolidate across GPU boundaries.
-
-\medskip
-
-\statbox{21--42\% of free GPUs are unusable (Alibaba)}
-
-\medskip
-
-\textbf{Together:} both reduce \textit{effective capacity} -- the fraction of the cluster doing useful work.
-
-\end{column}
-\begin{column}{0.43\textwidth}
-  \centering
-
-  % Waterfall diagram: total capacity eroded by two problems
-  \begin{tikzpicture}[scale=0.68, every node/.style={font=\footnotesize}]
-    % Bars
-    \fill[blue!30] (0,0) rectangle (2.2,6.5);
-    \node[rotate=90] at (1.1,3.25) {\textbf{Total Capacity}};
-    \node at (1.1,6.8) {100\%};
-
-    \fill[orange!50] (3,0) rectangle (5.2,5.2);
-    \fill[orange!80, pattern=north east lines, pattern color=orange!60] (3,5.2) rectangle (5.2,6.5);
-    \node[rotate=90] at (4.1,2.6) {\textbf{+ Heterogeneity}};
-    \node at (4.1,5.85) {\tiny{-20\%}};
-    \node at (4.1,6.8) {80\%};
-
-    \fill[green!40] (6,0) rectangle (8.2,3.6);
-    \fill[red!40, pattern=north east lines, pattern color=red!60] (6,3.6) rectangle (8.2,5.2);
-    \fill[orange!80, pattern=north east lines, pattern color=orange!60] (6,5.2) rectangle (8.2,6.5);
-    \node[rotate=90] at (7.1,1.8) {\textbf{Effective}};
-    \node at (7.1,4.4) {\tiny{-25\%}};
-    \node at (7.1,6.8) {55\%};
-
-    % Labels
-    \draw[<-, thick, orange!70!black] (5.4,5.85) -- (6.8,5.85) node[right, text width=1.5cm] {\tiny wrong GPU type};
-    \draw[<-, thick, red!70!black] (8.4,4.4) -- (9.2,4.4) node[right, text width=1.5cm] {\tiny fragments};
-  \end{tikzpicture}
-
-\end{column}
-\end{columns}
+\begin{center}
+  \includegraphics[width=\textwidth,height=0.85\textheight,keepaspectratio]{fig_slide1_capacity_v4.png}
+\end{center}
 
 \note{
   \begin{itemize}
     \item GPU clusters are expensive. Two problems erode effective capacity.
-    \item Heterogeneity: assigning jobs to wrong GPU types wastes throughput (10x difference).
-    \item Fragmentation: GPU sharing leaves fragments that can't serve any waiting job.
-    \item Alibaba data: 21-42\% of free GPUs unusable. Combined: effective capacity can drop to 55\%.
+    \item LEFT: Ideal -- jobs on best GPU type, compact placement, 100\% effective.
+    \item MIDDLE: Heterogeneity-unaware -- ResNet on K80 (10x slower!), BERT on T4 (3x slower!). 65\% effective.
+    \item RIGHT: Fragmentation -- every GPU partially used, fragments too small for waiting jobs. 3.2 GPUs of fragments but none large enough. 55\% effective.
     \item TRANSITION: Two recent systems tackle one problem each...
   \end{itemize}
 }
