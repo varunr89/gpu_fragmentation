@@ -1,57 +1,70 @@
-\documentclass[aspectratio=169,12pt]{beamer}
+\documentclass[aspectratio=169,pdf]{beamer}
 
-% Theme
-\usetheme{Madrid}
-\usecolortheme{whale}
+% Stanford theme
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{tikz}
 \usetikzlibrary{patterns}
 \usepackage{xcolor}
+\usepackage{caption}
+\captionsetup[figure]{labelformat=empty}
+\usepackage{tcolorbox}
 \graphicspath{{figures/}}
 
-% Clean navigation
-\setbeamertemplate{navigation symbols}{}
-\setbeamertemplate{footline}[frame number]
+\usetheme{Stanford}
+\input{./style_files_stanford/my_beamer_defs.sty}
+\logo{\includegraphics[height=0.4in]{./style_files_stanford/SU_New_BlockStree_2color.png}}
 
 % Tighter margins for figures
 \setbeamersize{text margin left=8mm, text margin right=8mm}
 
-% Custom colors for callout boxes
-\definecolor{alertbg}{RGB}{255,235,235}
-\definecolor{alertborder}{RGB}{200,60,60}
-\definecolor{insightbg}{RGB}{230,245,255}
-\definecolor{insightborder}{RGB}{40,100,180}
-
+% Custom callout boxes using Stanford colors
 \newcommand{\statbox}[1]{%
   \begin{tikzpicture}
-    \node[fill=alertbg, draw=alertborder, rounded corners=4pt, inner sep=6pt, line width=0.8pt] {%
-      \color{alertborder}\bfseries #1};
+    \node[fill=alertbg, draw=cardinalred, rounded corners=4pt, inner sep=6pt, line width=0.8pt] {%
+      \color{cardinalred}\bfseries #1};
   \end{tikzpicture}%
 }
+\definecolor{alertbg}{RGB}{255,235,235}
 
 \newcommand{\insightbox}[1]{%
   \begin{tikzpicture}
-    \node[fill=insightbg, draw=insightborder, rounded corners=4pt, inner sep=6pt, line width=0.8pt, text width=0.85\textwidth] {%
-      \color{insightborder}\bfseries #1};
+    \node[fill=insightbg, draw=darkcyan, rounded corners=4pt, inner sep=6pt, line width=0.8pt, text width=0.85\textwidth] {%
+      \color{darkcyan}\bfseries #1};
   \end{tikzpicture}%
 }
+\definecolor{insightbg}{RGB}{230,245,255}
+
+\newcommand{\empy}[1]{{\color{darkorange}\emph{#1}}}
+\newcommand{\empr}[1]{{\color{cardinalred}\emph{#1}}}
 
 % Title
-\title{Pack Smart, Schedule Fair}
+\title[GPU Sched]{Pack Smart, Schedule Fair}
 \subtitle{Unifying Heterogeneity and Fragmentation Awareness in GPU Scheduling}
-\author{Varun Ramesh \and Jiayu Chang \and Hyeonggyu Kim \and Stefan Gabriel Ene}
-\institute{Stanford University -- CS244C}
-\date{Winter 2026}
+
+\beamertemplatenavigationsymbolsempty
 
 \begin{document}
+
+\author[Stanford]{
+	\begin{tabular}{c | c | c | c}
+	Varun Ramesh & Jiayu Chang & Hyeonggyu Kim & Stefan Ene
+\end{tabular}
+\vspace{-4ex}}
+
+\institute{
+	\includegraphics[height=0.4in]{./style_files_stanford/SU_New_BlockStree_2color.png}\\
+	CS244C -- Advanced Topics in Networking\\
+	Stanford University}
+
+\date{Winter 2026}
 
 % ============================================================
 % TITLE SLIDE
 % ============================================================
-\begin{frame}
-\titlepage
-\end{frame}
+\begin{noheadline}
+\begin{frame}\maketitle\end{frame}
+\end{noheadline}
 
 % ============================================================
 % SLIDE 1: Problem -- Two Sources of Wasted GPU Capacity
@@ -86,7 +99,7 @@
   \includegraphics[width=0.95\textwidth]{fig2_gavel_algorithm.png}\\[4pt]
   \small Solves LP to allocate jobs across GPU types.\\
   Reduces JCT by 20--70\%.\\[6pt]
-  \textcolor{red}{\textbf{Gap:} Ignores \textit{where} jobs land.}
+  \textcolor{cardinalred}{\textbf{Gap:} Ignores \textit{where} jobs land.}
 \end{column}
 
 \begin{column}{0.12\textwidth}
@@ -102,7 +115,7 @@
   \includegraphics[width=0.95\textwidth]{fig3_fgd_algorithm.png}\\[4pt]
   \small Places jobs to minimize fragmentation gradient.\\
   Reduces wasted GPUs by 49\%.\\[6pt]
-  \textcolor{red}{\textbf{Gap:} No flexible policy framework.}
+  \textcolor{cardinalred}{\textbf{Gap:} No flexible policy framework.}
 \end{column}
 \end{columns}
 
