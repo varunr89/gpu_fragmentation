@@ -6,6 +6,7 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{tikz}
+\usetikzlibrary{patterns}
 \usepackage{xcolor}
 \graphicspath{{figures/}}
 
@@ -53,44 +54,72 @@
 \end{frame}
 
 % ============================================================
-% SLIDE 1: Problem -- GPU Fragmentation Wastes Capacity
+% SLIDE 1: Problem -- Two Sources of Wasted GPU Capacity
 % ============================================================
-\begin{frame}{GPU Clusters Waste Capacity Through Fragmentation}
+\begin{frame}{Two Problems Reduce Effective GPU Capacity}
 
 \begin{columns}[T]
 \begin{column}{0.55\textwidth}
 
-\textbf{GPU sharing} splits GPUs across multiple tasks to improve utilization.
+\textbf{1. GPU Heterogeneity Unawareness}\\[2pt]
+\small Different models have vastly different speedups per GPU type.
+ResNet-50: 10$\times$ faster on V100 vs. K80.
+A3C: only 2$\times$.
+Ignoring this wastes throughput.
 
 \medskip
 
-But it creates \textbf{fragments}: leftover GPU capacity too small for any waiting job.
+\textbf{2. Resource Fragmentation}\\[2pt]
+\small GPU sharing splits GPUs across tasks, but leaves fragments too small for any waiting job.
+These cannot consolidate across GPU boundaries.
 
-\bigskip
+\medskip
 
-\statbox{21--42\% of free GPU capacity is unusable}
+\statbox{21--42\% of free GPUs are unusable (Alibaba)}
 
-\bigskip
+\medskip
 
-\begin{itemize}
-  \item Average GPU utilization: 25--50\%
-  \item Fragments cannot consolidate across GPU boundaries
-  \item Equivalent to hundreds of idle GPUs at cluster scale
-\end{itemize}
+\textbf{Together:} both reduce \textit{effective capacity} -- the fraction of the cluster doing useful work.
 
 \end{column}
 \begin{column}{0.43\textwidth}
-  \includegraphics[width=\textwidth]{fig2_topology.png}
+  \centering
+
+  % Waterfall diagram: total capacity eroded by two problems
+  \begin{tikzpicture}[scale=0.68, every node/.style={font=\footnotesize}]
+    % Bars
+    \fill[blue!30] (0,0) rectangle (2.2,6.5);
+    \node[rotate=90] at (1.1,3.25) {\textbf{Total Capacity}};
+    \node at (1.1,6.8) {100\%};
+
+    \fill[orange!50] (3,0) rectangle (5.2,5.2);
+    \fill[orange!80, pattern=north east lines, pattern color=orange!60] (3,5.2) rectangle (5.2,6.5);
+    \node[rotate=90] at (4.1,2.6) {\textbf{+ Heterogeneity}};
+    \node at (4.1,5.85) {\tiny{-20\%}};
+    \node at (4.1,6.8) {80\%};
+
+    \fill[green!40] (6,0) rectangle (8.2,3.6);
+    \fill[red!40, pattern=north east lines, pattern color=red!60] (6,3.6) rectangle (8.2,5.2);
+    \fill[orange!80, pattern=north east lines, pattern color=orange!60] (6,5.2) rectangle (8.2,6.5);
+    \node[rotate=90] at (7.1,1.8) {\textbf{Effective}};
+    \node at (7.1,4.4) {\tiny{-25\%}};
+    \node at (7.1,6.8) {55\%};
+
+    % Labels
+    \draw[<-, thick, orange!70!black] (5.4,5.85) -- (6.8,5.85) node[right, text width=1.5cm] {\tiny wrong GPU type};
+    \draw[<-, thick, red!70!black] (8.4,4.4) -- (9.2,4.4) node[right, text width=1.5cm] {\tiny fragments};
+  \end{tikzpicture}
+
 \end{column}
 \end{columns}
 
 \note{
   \begin{itemize}
-    \item GPU clusters for ML training are expensive. Utilization averages 25-50\%.
-    \item GPU sharing helps -- multiple tasks on one GPU -- but creates fragments.
-    \item Alibaba production data: up to 42\% of free GPUs fragmented and unusable.
-    \item This is the equivalent of leaving hundreds of GPUs powered on doing nothing.
-    \item TRANSITION: Two recent systems tackle parts of this problem...
+    \item GPU clusters are expensive. Two problems erode effective capacity.
+    \item Heterogeneity: assigning jobs to wrong GPU types wastes throughput (10x difference).
+    \item Fragmentation: GPU sharing leaves fragments that can't serve any waiting job.
+    \item Alibaba data: 21-42\% of free GPUs unusable. Combined: effective capacity can drop to 55\%.
+    \item TRANSITION: Two recent systems tackle one problem each...
   \end{itemize}
 }
 
@@ -141,94 +170,93 @@ But it creates \textbf{fragments}: leftover GPU capacity too small for any waiti
 \end{frame}
 
 % ============================================================
-% SLIDE 3: Two-Stage Architecture
+% SLIDE 3: Our Approach -- Context + Architecture
 % ============================================================
-\begin{frame}{Our Approach: Two-Stage Architecture}
-
-\begin{center}
-  \includegraphics[width=0.72\textwidth,height=0.55\textheight,keepaspectratio]{fig1_architecture.png}
-\end{center}
-
-\vspace{-4pt}
+\begin{frame}{Our Approach: Bridging Two Research Lines}
 
 \begin{columns}[T]
-\begin{column}{0.48\textwidth}
-  \small\textbf{Stage 1 -- Allocation (Gavel):}\\
-  LP computes time fractions per GPU type.\\
-  \textit{``Which type, how much?''}
+\begin{column}{0.42\textwidth}
+  \centering
+  \includegraphics[width=\textwidth,height=0.55\textheight,keepaspectratio]{fig_literature_genealogy.png}\\[2pt]
+  \footnotesize Research lineage: heterogeneity-aware (blue),\\fragmentation-aware (red). \textbf{Our work bridges both.}
 \end{column}
-\begin{column}{0.48\textwidth}
-  \small\textbf{Stage 2 -- Placement (FGD):}\\
-  Selects node minimizing fragmentation gradient.\\
-  \textit{``Which specific node?''}
+\begin{column}{0.55\textwidth}
+  \centering
+  \includegraphics[width=\textwidth,height=0.42\textheight,keepaspectratio]{fig1_architecture.png}
+
+  \vspace{2pt}
+
+  \begin{columns}[T]
+  \begin{column}{0.48\textwidth}
+    \footnotesize\textbf{Stage 1 (Gavel):}\\
+    LP allocates across GPU types.\\
+    \textit{``Which type?''}
+  \end{column}
+  \begin{column}{0.48\textwidth}
+    \footnotesize\textbf{Stage 2 (FGD):}\\
+    Minimizes fragmentation gradient.\\
+    \textit{``Which node?''}
+  \end{column}
+  \end{columns}
 \end{column}
 \end{columns}
 
 \note{
   \begin{itemize}
-    \item Stage 1: Gavel's LP computes time-fraction allocations per GPU type.
-    \item Stage 2: Within the allocated type, FGD selects the node that minimizes fragmentation.
-    \item Clean separation -- allocation and placement are orthogonal and compose independently.
-    \item Also explored GavelFGD+: feeding placement availability back into LP as POA signal.
-    \item TRANSITION: To test this, we needed two very different clusters...
+    \item Left: research lineage -- two independent lines converge in our work.
+    \item Right: two-stage architecture. Stage 1 picks GPU type, Stage 2 picks node.
+    \item Clean separation -- allocation and placement are orthogonal.
+    \item Also explored GavelFGD+: feeding placement availability back into LP.
+    \item TRANSITION: How do we evaluate a combined system bridging two different methodologies?
   \end{itemize}
 }
 
 \end{frame}
 
 % ============================================================
-% SLIDE 4: Evaluation Setup
+% SLIDE 4: Evaluation Methodology
 % ============================================================
-\begin{frame}{Evaluation: Two Clusters, One Variable}
+\begin{frame}{Evaluation: Replicate, Then Extend}
 
 \begin{columns}[T]
-\begin{column}{0.55\textwidth}
-
-\begin{table}
-\small
-\begin{tabular}{lcc}
-\toprule
-\textbf{Property} & \textbf{Alibaba Split} & \textbf{Cluster H} \\
-\midrule
-Total GPUs & 6,212 & 5,592 \\
-GPU types & 12 (heterogeneous) & 1 (homogeneous) \\
-GPUs/node & \textbf{8 (uniform)} & \textbf{1, 2, 4, 8 (mixed)} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\bigskip
-
-\textbf{Controlled experiment:}\\
-Same traces, same simulator, same placement strategies.\\
-Only \textbf{node topology} differs.
-
+\begin{column}{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth,height=0.45\textheight,keepaspectratio]{fig4_eval_methodology.png}\\[3pt]
+  \footnotesize Gavel uses \textbf{round-based simulation} (dynamic arrivals, measures JCT).
+  FGD uses \textbf{inflation methodology} (monotonic fill, measures fragmentation).
+  We bridge both.
 \end{column}
-\begin{column}{0.43\textwidth}
+\begin{column}{0.48\textwidth}
+
+\small\textbf{Phase 1: Replicate to validate}\\[1pt]
+\footnotesize Gavel on Philly (504 exps) + FGD on Alibaba
+
+\smallskip
+
+\small\textbf{Phase 2--3: Extend with integration}\\[1pt]
+\footnotesize Combined Gavel+FGD on 2 cluster topologies\\
+15 rates $\times$ 3 seeds $\times$ 4 placements $\times$ 2 policies
+
+\smallskip
 
 \statbox{900 total experiments}
 
-\bigskip
+\smallskip
 
-\begin{itemize}
-  \item 15 arrival rates
-  \item 3 random seeds
-  \item 4 placement strategies:\\
-    Random, Strided, BestFit, FGD
-  \item 2 allocation policies:\\
-    Max-Min Fairness, FIFO
-\end{itemize}
+\footnotesize\textbf{Key variable:} node topology\\
+Alibaba Split: \textbf{uniform} 8-GPU nodes\\
+Cluster H: \textbf{mixed} 1/2/4/8-GPU nodes
 
 \end{column}
 \end{columns}
 
 \note{
   \begin{itemize}
-    \item Two Alibaba cluster topologies chosen to isolate one variable: node size diversity.
-    \item Alibaba Split has heterogeneous GPU types but uniform 8-GPU nodes.
-    \item Cluster H has homogeneous GPU type but mixed node sizes.
-    \item This is the controlled experiment. Only node topology differs.
-    \item TRANSITION: First, we validated our implementations...
+    \item Key challenge: Gavel and FGD use completely different evaluation methodologies.
+    \item We first replicate each independently to validate our implementations.
+    \item Then extend: combined system on two Alibaba cluster topologies.
+    \item The two clusters isolate one variable: node size diversity.
+    \item TRANSITION: Let's see the replication results...
   \end{itemize}
 }
 
